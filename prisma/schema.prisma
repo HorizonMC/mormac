@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Shop {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  address   String?
+  phone     String?
+  lineOaId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner     User      @relation("ShopOwner", fields: [ownerId], references: [id])
+  staff     Staff[]
+  repairs   Repair[]
+  inventory Device[]
+  parts     Part[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  lineUserId   String?  @unique
+  name         String
+  phone        String?
+  email        String?
+  role         String   @default("customer")
+  memberTier   String   @default("none")
+  memberPoints Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedShops Shop[]   @relation("ShopOwner")
+  repairs    Repair[]
+  staff      Staff[]
+}
+
+model Staff {
+  id     String @id @default(cuid())
+  userId String
+  shopId String
+  role   String @default("tech")
+
+  user    User     @relation(fields: [userId], references: [id])
+  shop    Shop     @relation(fields: [shopId], references: [id])
+  repairs Repair[] @relation("AssignedTech")
+
+  @@unique([userId, shopId])
+}
+
+model Repair {
+  id             String    @id @default(cuid())
+  repairCode     String    @unique
+  shopId         String
+  customerId     String
+  techId         String?
+  deviceModel    String
+  deviceType     String
+  serialNo       String?
+  imei           String?
+  symptoms       String
+  diagnosis      String?
+  status         String    @default("submitted")
+  quotedPrice    Float?
+  finalPrice     Float?
+  partsCost      Float?
+  laborCost      Float?
+  photos         String?
+  qcPhotos       String?
+  shippingMethod String?
+  trackingNo     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  completedAt    DateTime?
+
+  shop      Shop          @relation(fields: [shopId], references: [id])
+  customer  User          @relation(fields: [customerId], references: [id])
+  tech      Staff?        @relation("AssignedTech", fields: [techId], references: [id])
+  partsUsed RepairPart[]
+  timeline  RepairEvent[]
+}
+
+model RepairEvent {
+  id        String   @id @default(cuid())
+  repairId  String
+  status    String
+  note      String?
+  actor     String?
+  createdAt DateTime @default(now())
+
+  repair Repair @relation(fields: [repairId], references: [id])
+}
+
+model Device {
+  id           String   @id @default(cuid())
+  shopId       String
+  model        String
+  deviceType   String
+  serialNo     String?
+  imei         String?
+  condition    String?
+  buyPrice     Float
+  sellPrice    Float?
+  repairCost   Float?
+  status       String   @default("incoming")
+  sellerId     String?
+  sellerIdCard String?
+  photos       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id])
+}
+
+model Part {
+  id        String   @id @default(cuid())
+  shopId    String
+  name      String
+  sku       String?
+  category  String?
+  quantity  Int      @default(0)
+  costPrice Float
+  alertAt   Int      @default(3)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop   Shop         @relation(fields: [shopId], references: [id])
+  usedIn RepairPart[]
+}
+
+model RepairPart {
+  id       String @id @default(cuid())
+  repairId String
+  partId   String
+  quantity Int    @default(1)
+  cost     Float
+
+  repair Repair @relation(fields: [repairId], references: [id])
+  part   Part   @relation(fields: [partId], references: [id])
+}
