@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { repairStatusText } from "@/lib/line";
+import { brand } from "@/lib/brand";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function QueuePage() {
+  const c = brand.colors;
   const repairs = await prisma.repair.findMany({
     where: { status: { notIn: ["returned", "cancelled"] } },
     include: { customer: true, tech: { include: { user: true } } },
@@ -20,7 +22,7 @@ export default async function QueuePage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-[#0F1720] mb-4">คิวงานซ่อม</h1>
+      <h1 className="text-xl font-bold mb-4" style={{ color: c.dark }}>คิวงานซ่อม</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatCard label="รอดำเนินการ" count={byStatus.pending.length} color="bg-yellow-100 text-yellow-800" />
@@ -28,11 +30,11 @@ export default async function QueuePage() {
         <StatCard label="เสร็จ/รอส่ง" count={byStatus.done.length} color="bg-green-100 text-green-800" />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-[#85C1B2]/20">
+      <div className="bg-white rounded-xl shadow-sm" style={{ borderColor: `${c.mint}33`, borderWidth: 1 }}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#85C1B2]/20 text-left text-[#4A7A8A]">
+              <tr className="text-left" style={{ color: c.teal, borderBottom: `1px solid ${c.mint}33` }}>
                 <th className="p-3">เลขซ่อม</th>
                 <th className="p-3">อุปกรณ์</th>
                 <th className="p-3">อาการ</th>
@@ -44,24 +46,22 @@ export default async function QueuePage() {
             </thead>
             <tbody>
               {repairs.map((r) => (
-                <tr key={r.id} className="border-b border-[#85C1B2]/10 hover:bg-[#f0faf7]">
+                <tr key={r.id} className="hover:bg-opacity-50" style={{ borderBottom: `1px solid ${c.mint}1a` }}>
                   <td className="p-3 font-mono font-medium">{r.repairCode}</td>
                   <td className="p-3">{r.deviceModel}</td>
-                  <td className="p-3 text-[#4A7A8A] max-w-40 truncate">{r.symptoms}</td>
+                  <td className="p-3 max-w-40 truncate" style={{ color: c.teal }}>{r.symptoms}</td>
                   <td className="p-3">
-                    <span className="text-xs px-2 py-1 rounded-full bg-[#0F1720]/5">{repairStatusText(r.status)}</span>
+                    <span className="text-xs px-2 py-1 rounded-full" style={{ background: `${c.dark}0d` }}>{repairStatusText(r.status)}</span>
                   </td>
-                  <td className="p-3 text-[#4A7A8A]">{r.tech?.user.name || "—"}</td>
-                  <td className="p-3 text-[#4A7A8A]">{r.createdAt.toLocaleDateString("th-TH")}</td>
+                  <td className="p-3" style={{ color: c.teal }}>{r.tech?.user.name || "—"}</td>
+                  <td className="p-3" style={{ color: c.teal }}>{r.createdAt.toLocaleDateString("th-TH")}</td>
                   <td className="p-3">
-                    <Link href={`/admin/repairs/${r.id}`} className="text-[#4A7A8A] hover:text-[#0F1720] text-xs underline">
-                      จัดการ
-                    </Link>
+                    <Link href={`/admin/repairs/${r.id}`} className="text-xs underline" style={{ color: c.teal }}>จัดการ</Link>
                   </td>
                 </tr>
               ))}
               {repairs.length === 0 && (
-                <tr><td colSpan={7} className="p-8 text-center text-[#4A7A8A]">ไม่มีงานซ่อมในระบบ</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center" style={{ color: c.teal }}>ไม่มีงานซ่อมในระบบ</td></tr>
               )}
             </tbody>
           </table>
@@ -72,10 +72,11 @@ export default async function QueuePage() {
 }
 
 function StatCard({ label, count, color }: { label: string; count: number; color: string }) {
+  const c = brand.colors;
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-[#85C1B2]/20 p-4">
-      <p className="text-sm text-[#4A7A8A]">{label}</p>
-      <p className="text-2xl font-bold text-[#0F1720]">{count}</p>
+    <div className="bg-white rounded-xl shadow-sm p-4" style={{ borderColor: `${c.mint}33`, borderWidth: 1 }}>
+      <p className="text-sm" style={{ color: c.teal }}>{label}</p>
+      <p className="text-2xl font-bold" style={{ color: c.dark }}>{count}</p>
       <span className={`text-xs px-2 py-0.5 rounded-full ${color}`}>{label}</span>
     </div>
   );

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { brand } from "@/lib/brand";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MorMac หมอแมค — Apple Device Specialist",
-  description: "ระบบบริหารจัดการร้านซ่อม Apple Devices — รับซ่อม, รับซื้อ, ขาย refurb",
+  title: `${brand.name} ${brand.nameTh} — ${brand.tagline}`,
+  description: `ระบบบริหารจัดการร้านซ่อม — ${brand.name}`,
 };
 
 export default function RootLayout({
@@ -26,6 +27,13 @@ export default function RootLayout({
     <html
       lang="th"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      style={{
+        "--brand-dark": brand.colors.dark,
+        "--brand-teal": brand.colors.teal,
+        "--brand-mint": brand.colors.mint,
+        "--brand-accent": brand.colors.accent,
+        "--brand-bg": brand.colors.bg,
+      } as React.CSSProperties}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
