@@ -26,7 +26,13 @@ export default async function RepairDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-xl font-bold text-[#0F1720] mb-1">{repair.repairCode}</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-xl font-bold text-[#0F1720]">{repair.repairCode}</h1>
+        <div className="flex gap-2">
+          <a href={`/api/repairs/cover?code=${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition">🖨️ ใบปะหน้าซอง</a>
+          <a href={`/track/${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition">🔗 หน้า Tracking</a>
+        </div>
+      </div>
       <p className="text-[#4A7A8A] text-sm mb-6">{repair.deviceModel} — {repair.symptoms}</p>
 
       <div className="grid grid-cols-2 gap-4 mb-6">

@@ -13,7 +13,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
         <div className="flex gap-4 text-sm">
           <Link href="/admin/queue" className="hover:text-white" style={{ color: c.mint }}>คิวงาน</Link>
+          <Link href="/admin/devices" className="hover:text-white" style={{ color: c.mint }}>เครื่อง</Link>
           <Link href="/admin/parts" className="hover:text-white" style={{ color: c.mint }}>อะไหล่</Link>
+          <Link href="/admin/customers" className="hover:text-white" style={{ color: c.mint }}>ลูกค้า</Link>
           <Link href="/admin/overview" className="hover:text-white" style={{ color: c.mint }}>ภาพรวม</Link>
           <Link href="/admin/settings" className="hover:text-white" style={{ color: c.mint }}>ตั้งค่า</Link>
         </div>
