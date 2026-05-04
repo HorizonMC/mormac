@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { repairStatusText } from "@/lib/line";
-import { brand } from "@/lib/brand";
+import { getBrand } from "@/lib/brand";
 import { notFound } from "next/navigation";
 
 interface Props {
@@ -11,6 +11,7 @@ const STATUSES = ["submitted", "received", "diagnosing", "quoted", "confirmed", 
 
 export default async function TrackPage({ params }: Props) {
   const { code } = await params;
+  const brand = await getBrand();
   const c = brand.colors;
 
   const repair = await prisma.repair.findUnique({

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { brand } from "@/lib/brand";
+import { brand, getBrand } from "@/lib/brand";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,21 +18,22 @@ export const metadata: Metadata = {
   description: `ระบบบริหารจัดการร้านซ่อม — ${brand.name}`,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const b = await getBrand();
   return (
     <html
       lang="th"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       style={{
-        "--brand-dark": brand.colors.dark,
-        "--brand-teal": brand.colors.teal,
-        "--brand-mint": brand.colors.mint,
-        "--brand-accent": brand.colors.accent,
-        "--brand-bg": brand.colors.bg,
+        "--brand-dark": b.colors.dark,
+        "--brand-teal": b.colors.teal,
+        "--brand-mint": b.colors.mint,
+        "--brand-accent": b.colors.accent,
+        "--brand-bg": b.colors.bg,
       } as React.CSSProperties}
     >
       <body className="min-h-full flex flex-col">{children}</body>

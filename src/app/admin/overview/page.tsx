@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { brand } from "@/lib/brand";
+import { getBrand } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
+  const brand = await getBrand();
   const c = brand.colors;
 
   const [totalRepairs, activeRepairs, completedRepairs, totalDevices, readyDevices] = await Promise.all([
@@ -75,16 +76,9 @@ export default async function OverviewPage() {
 }
 
 function KPI({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
-  const c = brand.colors;
   return (
-    <div className="rounded-xl p-4" style={{
-      background: accent ? c.dark : "white",
-      color: accent ? "white" : c.dark,
-      borderColor: accent ? "transparent" : `${c.mint}33`,
-      borderWidth: accent ? 0 : 1,
-      boxShadow: accent ? "none" : "0 1px 2px rgba(0,0,0,0.05)",
-    }}>
-      <p className="text-xs" style={{ color: accent ? c.mint : c.teal }}>{label}</p>
+    <div className={`rounded-xl p-4 ${accent ? "bg-gray-900 text-white" : "bg-white shadow-sm border border-gray-100"}`}>
+      <p className={`text-xs ${accent ? "text-gray-400" : "text-gray-500"}`}>{label}</p>
       <p className="text-2xl font-bold">{value}</p>
     </div>
   );

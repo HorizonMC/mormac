@@ -144,3 +144,9 @@ model RepairPart {
   repair Repair @relation(fields: [repairId], references: [id])
   part   Part   @relation(fields: [partId], references: [id])
 }
+
+model Config {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { repairStatusText } from "@/lib/line";
-import { brand } from "@/lib/brand";
+import { getBrand } from "@/lib/brand";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function QueuePage() {
+  const brand = await getBrand();
   const c = brand.colors;
   const repairs = await prisma.repair.findMany({
     where: { status: { notIn: ["returned", "cancelled"] } },
@@ -72,11 +73,10 @@ export default async function QueuePage() {
 }
 
 function StatCard({ label, count, color }: { label: string; count: number; color: string }) {
-  const c = brand.colors;
   return (
-    <div className="bg-white rounded-xl shadow-sm p-4" style={{ borderColor: `${c.mint}33`, borderWidth: 1 }}>
-      <p className="text-sm" style={{ color: c.teal }}>{label}</p>
-      <p className="text-2xl font-bold" style={{ color: c.dark }}>{count}</p>
+    <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+      <p className="text-sm text-gray-500">{label}</p>
+      <p className="text-2xl font-bold">{count}</p>
       <span className={`text-xs px-2 py-0.5 rounded-full ${color}`}>{label}</span>
     </div>
   );

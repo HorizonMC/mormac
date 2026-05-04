@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { brand } from "@/lib/brand";
+import { getBrand } from "@/lib/brand";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const brand = await getBrand();
   const c = brand.colors;
   return (
     <div className="min-h-screen" style={{ background: c.bg }}>
