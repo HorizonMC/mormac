@@ -185,33 +185,129 @@ app.get("/stats", async (c) => {
   return c.json({ totalRepairs, activeRepairs, completedRepairs, totalDevices, readyDevices, lowStockParts, recentRepairs });
 });
 
-// ===== AI Parse =====
+// ===== AI =====
 const SYSTEM_PROMPT = await Bun.file(path.resolve(import.meta.dir, "../ai/repair-assistant.md")).text();
+const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
+
+async function aiParse(message: string) {
+  const res = await fetch("http://localhost:11434/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gemma3:4b",
+      prompt: `ข้อความจากลูกค้า: "${message}"`,
+      system: SYSTEM_PROMPT,
+      stream: false,
+      keep_alive: "30m",
+      options: { temperature: 0.1, num_predict: 300 },
+    }),
+  });
+  const data = await res.json() as { response: string };
+  const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return { intent: "chat" as const, reply: data.response };
+  return JSON.parse(jsonMatch[0]);
+}
+
+async function linePush(userId: string, text: string) {
+  await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ to: userId, messages: [{ type: "text", text }] }),
+  });
+}
 
 app.post("/ai/parse", async (c) => {
   const { message } = await c.req.json();
   if (!message) return c.json({ error: "Missing message" }, 400);
-
   try {
-    const res = await fetch("http://localhost:11434/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gemma3:4b",
-        prompt: `ข้อความจากลูกค้า: "${message}"`,
-        system: SYSTEM_PROMPT,
-        stream: false,
-        keep_alive: "30m",
-        options: { temperature: 0.1, num_predict: 300 },
-      }),
-    });
-    const data = await res.json() as { response: string };
-    const jsonMatch = data.response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return c.json({ intent: "chat", reply: data.response });
-    return c.json(JSON.parse(jsonMatch[0]));
-  } catch (e) {
+    return c.json(await aiParse(message));
+  } catch {
     return c.json({ intent: "chat", reply: "ขออภัยค่ะ ระบบขัดข้อง กรุณาลองใหม่" });
   }
+});
+
+// Async AI handler — Vercel fires and forgets, DB server does AI + LINE reply
+app.post("/ai/handle", async (c) => {
+  const { message, userId } = await c.req.json();
+  if (!message || !userId) return c.json({ error: "Missing fields" }, 400);
+
+  // Return 200 immediately, process in background
+  const task = (async () => {
+    try {
+      const ai = await aiParse(message);
+
+      if (ai.intent === "repair" && ai.device && ai.symptoms) {
+        const shops = await prisma.shop.findMany({ take: 1 });
+        if (shops.length === 0) { await linePush(userId, "⚠️ ระบบยังไม่พร้อม"); return; }
+
+        let customer = await prisma.user.findUnique({ where: { lineUserId: userId } });
+        if (!customer) customer = await prisma.user.create({ data: { lineUserId: userId, name: "LINE User", role: "customer" } });
+
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const prefix = `MOR-${yy}${mm}`;
+        const last = await prisma.repair.findFirst({ where: { repairCode: { startsWith: prefix } }, orderBy: { repairCode: "desc" } });
+        let seq = 1;
+        if (last) seq = parseInt(last.repairCode.split("-")[2], 10) + 1;
+        const repairCode = `${prefix}-${String(seq).padStart(4, "0")}`;
+
+        const deviceModel = ai.specs ? `${ai.device} (${ai.specs})` : ai.device;
+        await prisma.repair.create({ data: { repairCode, shopId: shops[0].id, customerId: customer.id, deviceModel, deviceType: ai.type || "other", symptoms: ai.symptoms, status: "submitted" } });
+        await prisma.repairEvent.create({ data: { repairId: (await prisma.repair.findUnique({ where: { repairCode } }))!.id, status: "submitted", actor: "system" } });
+
+        const trackUrl = `https://mormac.vercel.app/track/${repairCode}`;
+        await fetch("https://api.line.me/v2/bot/message/push", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: userId,
+            messages: [{
+              type: "flex", altText: `แจ้งซ่อมสำเร็จ ${repairCode}`,
+              contents: {
+                type: "bubble",
+                styles: { header: { backgroundColor: "#0F1720" } },
+                header: { type: "box", layout: "vertical", paddingAll: "20px", contents: [
+                  { type: "text", text: "✅ แจ้งซ่อมสำเร็จ!", color: "#28EF33", size: "lg", weight: "bold" },
+                  { type: "text", text: repairCode, color: "#FFFFFF", size: "xxl", weight: "bold", margin: "sm" },
+                ]},
+                body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "20px", contents: [
+                  { type: "box", layout: "horizontal", contents: [
+                    { type: "text", text: "อุปกรณ์", size: "sm", color: "#888888", flex: 3 },
+                    { type: "text", text: deviceModel, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
+                  ]},
+                  { type: "box", layout: "horizontal", contents: [
+                    { type: "text", text: "อาการ", size: "sm", color: "#888888", flex: 3 },
+                    { type: "text", text: ai.symptoms, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
+                  ]},
+                  { type: "separator", color: "#EEEEEE" },
+                  { type: "text", text: "เราจะตรวจเช็คและแจ้งราคาให้ทราบ", size: "xs", color: "#888888", margin: "md", wrap: true },
+                ]},
+                footer: { type: "box", layout: "vertical", paddingAll: "16px", contents: [
+                  { type: "button", style: "primary", color: "#0F1720", height: "sm", action: { type: "uri", label: "🔗 ติดตามสถานะ", uri: trackUrl } },
+                ]},
+              },
+            }],
+          }),
+        });
+        return;
+      }
+
+      if (ai.reply) {
+        await linePush(userId, ai.reply);
+        return;
+      }
+
+      await linePush(userId, "สวัสดีค่ะ 🙏 หมอแมค MorMac\nบอกรุ่นเครื่องและอาการได้เลยค่ะ");
+    } catch (e) {
+      console.error("AI handle error:", e);
+      await linePush(userId, "ขออภัยค่ะ ระบบขัดข้อง กรุณาลองใหม่อีกครั้งนะคะ");
+    }
+  })();
+
+  // Don't await — return immediately
+  void task;
+  return c.json({ ok: true, async: true });
 });
 
 // ===== Reports =====

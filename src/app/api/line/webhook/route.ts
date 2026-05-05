@@ -75,34 +75,15 @@ async function handleEvent(event: any) {
       return;
     }
 
-    // 3. AI — ทุกข้อความอื่นส่งให้ LLM ตอบ
-    try {
-      const ai = await db.ai.parse(text);
-
-      if (ai.intent === "repair" && ai.device && ai.symptoms) {
-        const result = await createRepair(userId, ai.specs ? `${ai.device} (${ai.specs})` : ai.device, ai.type || "other", ai.symptoms);
-        if (result) {
-          await lineClient.replyMessage({ replyToken, messages: [buildSubmitSuccessFlex(result.repairCode, result.deviceModel, result.symptoms, result.trackUrl)] });
-          return;
-        }
-      }
-
-      if (ai.reply) {
-        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: ai.reply }] });
-        return;
-      }
-    } catch {
-      // AI unavailable
-    }
-
-    // 4. Fallback only when AI fails
-    await lineClient.replyMessage({
-      replyToken,
-      messages: [{
-        type: "text",
-        text: `สวัสดีค่ะ 🙏 หมอแมค MorMac\n\nบอกรุ่นเครื่องและอาการได้เลยค่ะ เช่น\n"iPhone 15 Pro จอแตก"\n"MacBook Pro ชาร์จไม่เข้า"`,
-      }],
-    });
+    // 3. AI — fire-and-forget to DB server (no Vercel timeout issue)
+    const dbUrl = process.env.DB_API_URL || "http://localhost:4100";
+    const dbKey = process.env.DB_API_KEY || "mormac-artron-2026";
+    fetch(`${dbUrl}/ai/handle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": dbKey },
+      body: JSON.stringify({ message: text, userId }),
+    }).catch(() => {});
+    // Return immediately — DB server will push reply via LINE API
   }
 
   if (event.type === "postback") {
