@@ -62,11 +62,10 @@ async function handleEvent(event: any) {
       return;
     }
 
-    // Submit repair
-    if (text.includes("รุ่น:") && text.includes("อาการ:")) {
-      const modelMatch = text.match(/รุ่น:\s*(.+)/);
-      const symptomMatch = text.match(/อาการ:\s*(.+)/);
-      if (!modelMatch || !symptomMatch) return;
+    // Submit repair — flexible matching: "รุ่น:", "รุ่น :", "รุ่น", etc.
+    const modelMatch = text.match(/รุ่น\s*[:：]\s*(.+)/m);
+    const symptomMatch = text.match(/อาการ\s*[:：]\s*(.+)/m);
+    if (modelMatch && symptomMatch) {
       const deviceModel = modelMatch[1].trim();
       const symptoms = symptomMatch[1].trim();
       let deviceType = "other";

@@ -1,4 +1,8 @@
-import { createCanvas } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import path from "path";
+
+GlobalFonts.registerFromPath(path.join(import.meta.dir, "fonts/NotoSansThai-Bold.ttf"), "NotoThai");
+GlobalFonts.registerFromPath(path.join(import.meta.dir, "fonts/NotoSansThai-Regular.ttf"), "NotoThaiReg");
 
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN!;
 const API = "https://api.line.me/v2/bot";
@@ -169,7 +173,7 @@ async function uploadImage(richMenuId: string) {
 
     // Label - Thai
     ctx.fillStyle = C.white;
-    ctx.font = "bold 60px sans-serif";
+    ctx.font = "bold 60px NotoThai, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(col.label, col.x, 520);
 
