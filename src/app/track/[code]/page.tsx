@@ -48,6 +48,25 @@ export default async function TrackPage({ params }: Props) {
         <p className="text-lg font-bold text-white">{repairStatusText(repair.status)}</p>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <a
+          href={`/api/repairs/cover?code=${encodeURIComponent(repair.repairCode)}`}
+          target="_blank"
+          className="rounded-xl p-3 text-center text-sm font-bold text-white"
+          style={{ background: c.dark }}
+        >
+          🧾 ใบปะหน้าส่งเครื่อง
+        </a>
+        <a
+          href={`/api/repairs/jobsheet?code=${encodeURIComponent(repair.repairCode)}`}
+          target="_blank"
+          className="rounded-xl p-3 text-center text-sm font-bold"
+          style={{ background: `${c.mint}44`, color: c.dark }}
+        >
+          🖨️ ใบรับซ่อม
+        </a>
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm p-6" style={{ borderColor: `${c.mint}33`, borderWidth: 1 }}>
         <p className="text-sm font-bold mb-4" style={{ color: c.dark }}>Timeline</p>
         {STATUSES.map((s, i) => {

@@ -75,15 +75,26 @@ async function handleEvent(event: any) {
       return;
     }
 
-    // 3. AI — fire-and-forget to DB server (no Vercel timeout issue)
+    // 3. AI — hand off to DB server, then return before AI work finishes.
+    // Vercel may stop background work after the response, so the handoff itself
+    // must be awaited. The DB server returns immediately and pushes the LINE reply.
     const dbUrl = process.env.DB_API_URL || "http://localhost:4100";
     const dbKey = process.env.DB_API_KEY || "mormac-artron-2026";
-    fetch(`${dbUrl}/ai/handle`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": dbKey },
-      body: JSON.stringify({ message: text, userId }),
-    }).catch(() => {});
-    // Return immediately — DB server will push reply via LINE API
+    try {
+      const res = await fetch(`${dbUrl}/ai/handle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": dbKey },
+        body: JSON.stringify({ message: text, userId }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) throw new Error(`AI handoff failed: ${res.status}`);
+    } catch (error) {
+      console.error("LINE AI handoff error:", error);
+      await lineClient.replyMessage({
+        replyToken,
+        messages: [{ type: "text", text: "ขออภัยค่ะ ระบบตอบกลับอัตโนมัติขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งนะคะ" }],
+      });
+    }
   }
 
   if (event.type === "postback") {

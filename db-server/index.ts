@@ -189,6 +189,36 @@ app.get("/stats", async (c) => {
 const SYSTEM_PROMPT = await Bun.file(path.resolve(import.meta.dir, "../ai/repair-assistant.md")).text();
 const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
 
+type RepairDraftMeta = {
+  kind: "repairDraft";
+  deviceModel: string;
+  deviceType: string;
+  symptoms: string;
+};
+
+function parseJsonObject<T>(value: string | null | undefined): T | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
+function extractThaiFullName(message: string): string | null {
+  const text = message.trim().replace(/\s+/g, " ");
+  const match = text.match(/^(?:ชื่อ|ผมชื่อ|ฉันชื่อ|ลูกค้าชื่อ)\s*[:：]?\s*(.+)$/i);
+  const name = (match?.[1] || text).trim();
+  if (name.length < 4 || name.length > 80) return null;
+  if (!/\s/.test(name)) return null;
+  if (/[0-9]|@|https?:\/\//i.test(name)) return null;
+  return name;
+}
+
+function buildShippingCoverUrl(repairCode: string) {
+  return `https://mormac.vercel.app/api/repairs/cover?code=${encodeURIComponent(repairCode)}`;
+}
+
 async function aiParse(message: string) {
   const res = await fetch("http://localhost:11434/api/generate", {
     method: "POST",
@@ -234,14 +264,29 @@ app.post("/ai/handle", async (c) => {
   // Return 200 immediately, process in background
   const task = (async () => {
     try {
-      const ai = await aiParse(message);
+      let customer = await prisma.user.findUnique({ where: { lineUserId: userId } });
+      const pendingRepair = await prisma.repair.findFirst({
+        where: { customer: { lineUserId: userId }, status: "pending_customer_name" },
+        include: { customer: true },
+        orderBy: { createdAt: "desc" },
+      });
 
-      if (ai.intent === "repair" && ai.device && ai.symptoms) {
-        const shops = await prisma.shop.findMany({ take: 1 });
-        if (shops.length === 0) { await linePush(userId, "⚠️ ระบบยังไม่พร้อม"); return; }
+      if (pendingRepair) {
+        const fullName = extractThaiFullName(message);
+        if (!fullName) {
+          await linePush(userId, "ขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยค่ะ\nเช่น สมชาย ใจดี");
+          return;
+        }
 
-        let customer = await prisma.user.findUnique({ where: { lineUserId: userId } });
-        if (!customer) customer = await prisma.user.create({ data: { lineUserId: userId, name: "LINE User", role: "customer" } });
+        const draft = parseJsonObject<RepairDraftMeta>(pendingRepair.photos);
+        if (!draft || draft.kind !== "repairDraft") {
+          await prisma.repair.update({
+            where: { id: pendingRepair.id },
+            data: { status: "cancelled", photos: null },
+          });
+          await linePush(userId, "ข้อมูลแจ้งซ่อมเดิมไม่สมบูรณ์ กรุณาแจ้งรุ่นเครื่องและอาการอีกครั้งนะคะ");
+          return;
+        }
 
         const now = new Date();
         const yy = String(now.getFullYear()).slice(-2);
@@ -252,7 +297,124 @@ app.post("/ai/handle", async (c) => {
         if (last) seq = parseInt(last.repairCode.split("-")[2], 10) + 1;
         const repairCode = `${prefix}-${String(seq).padStart(4, "0")}`;
 
+        await prisma.$transaction([
+          prisma.user.update({ where: { id: pendingRepair.customerId }, data: { name: fullName } }),
+          prisma.repair.update({
+            where: { id: pendingRepair.id },
+            data: {
+              repairCode,
+              deviceModel: draft.deviceModel,
+              deviceType: draft.deviceType,
+              symptoms: draft.symptoms,
+              status: "submitted",
+              photos: null,
+            },
+          }),
+          prisma.repairEvent.create({ data: { repairId: pendingRepair.id, status: "submitted", actor: "system", note: "Customer name confirmed" } }),
+        ]);
+
+        const trackUrl = `https://mormac.vercel.app/track/${repairCode}`;
+        await fetch("https://api.line.me/v2/bot/message/push", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: userId,
+            messages: [{
+              type: "flex", altText: `แจ้งซ่อมสำเร็จ ${repairCode}`,
+              contents: {
+                type: "bubble",
+                styles: { header: { backgroundColor: "#0F1720" } },
+                header: { type: "box", layout: "vertical", paddingAll: "20px", contents: [
+                  { type: "text", text: "✅ แจ้งซ่อมสำเร็จ!", color: "#28EF33", size: "lg", weight: "bold" },
+                  { type: "text", text: repairCode, color: "#FFFFFF", size: "xxl", weight: "bold", margin: "sm" },
+                ]},
+                body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "20px", contents: [
+                  { type: "box", layout: "horizontal", contents: [
+                    { type: "text", text: "ลูกค้า", size: "sm", color: "#888888", flex: 3 },
+                    { type: "text", text: fullName, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
+                  ]},
+                  { type: "box", layout: "horizontal", contents: [
+                    { type: "text", text: "อุปกรณ์", size: "sm", color: "#888888", flex: 3 },
+                    { type: "text", text: draft.deviceModel, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
+                  ]},
+                  { type: "box", layout: "horizontal", contents: [
+                    { type: "text", text: "อาการ", size: "sm", color: "#888888", flex: 3 },
+                    { type: "text", text: draft.symptoms, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
+                  ]},
+                  { type: "separator", color: "#EEEEEE" },
+                  { type: "text", text: "เปิดหน้าติดตามเพื่อพิมพ์ใบปะหน้าซองหรือกล่องส่งเครื่องได้ค่ะ", size: "xs", color: "#888888", margin: "md", wrap: true },
+                ]},
+                footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", contents: [
+                  { type: "button", style: "primary", color: "#0F1720", height: "sm", action: { type: "uri", label: "🔗 ติดตามสถานะ", uri: trackUrl } },
+                  { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "🧾 ใบปะหน้าส่งเครื่อง", uri: buildShippingCoverUrl(repairCode) } },
+                ]},
+              },
+            }],
+          }),
+        });
+        return;
+      }
+
+      const ai = await aiParse(message);
+
+      if (ai.intent === "repair" && ai.device && ai.symptoms) {
+        const shops = await prisma.shop.findMany({ take: 1 });
+        if (shops.length === 0) { await linePush(userId, "⚠️ ระบบยังไม่พร้อม"); return; }
+
         const deviceModel = ai.specs ? `${ai.device} (${ai.specs})` : ai.device;
+        const recentDuplicate = await prisma.repair.findFirst({
+          where: {
+            customer: { lineUserId: userId },
+            deviceModel,
+            symptoms: ai.symptoms,
+            status: { notIn: ["cancelled", "returned"] },
+            createdAt: { gte: new Date(Date.now() - 1000 * 60 * 30) },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+        if (recentDuplicate) {
+          const code = recentDuplicate.repairCode.startsWith("TMP-") ? null : recentDuplicate.repairCode;
+          await linePush(
+            userId,
+            code
+              ? `รายการนี้ถูกแจ้งไว้แล้วค่ะ เลขซ่อม ${code}\nติดตามสถานะ: https://mormac.vercel.app/track/${code}`
+              : "รายการนี้อยู่ระหว่างรอชื่อจริงและนามสกุลค่ะ กรุณาส่งชื่อจริงและนามสกุล เช่น สมชาย ใจดี"
+          );
+          return;
+        }
+
+        if (!customer) customer = await prisma.user.create({ data: { lineUserId: userId, name: "LINE User", role: "customer" } });
+        if (customer.name === "LINE User" || !/\s/.test(customer.name.trim())) {
+          await prisma.repair.create({
+            data: {
+              repairCode: `TMP-${crypto.randomUUID()}`,
+              shopId: shops[0].id,
+              customerId: customer.id,
+              deviceModel,
+              deviceType: ai.type || "other",
+              symptoms: ai.symptoms,
+              status: "pending_customer_name",
+              photos: JSON.stringify({
+                kind: "repairDraft",
+                deviceModel,
+                deviceType: ai.type || "other",
+                symptoms: ai.symptoms,
+              } satisfies RepairDraftMeta),
+            },
+          });
+          await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยนะคะ\nเช่น สมชาย ใจดี");
+          return;
+        }
+
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const prefix = `MOR-${yy}${mm}`;
+        const last = await prisma.repair.findFirst({ where: { repairCode: { startsWith: prefix } }, orderBy: { repairCode: "desc" } });
+        let seq = 1;
+        if (last) seq = parseInt(last.repairCode.split("-")[2], 10) + 1;
+        const repairCode = `${prefix}-${String(seq).padStart(4, "0")}`;
+
         await prisma.repair.create({ data: { repairCode, shopId: shops[0].id, customerId: customer.id, deviceModel, deviceType: ai.type || "other", symptoms: ai.symptoms, status: "submitted" } });
         await prisma.repairEvent.create({ data: { repairId: (await prisma.repair.findUnique({ where: { repairCode } }))!.id, status: "submitted", actor: "system" } });
 
@@ -283,8 +445,9 @@ app.post("/ai/handle", async (c) => {
                   { type: "separator", color: "#EEEEEE" },
                   { type: "text", text: "เราจะตรวจเช็คและแจ้งราคาให้ทราบ", size: "xs", color: "#888888", margin: "md", wrap: true },
                 ]},
-                footer: { type: "box", layout: "vertical", paddingAll: "16px", contents: [
+                footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", contents: [
                   { type: "button", style: "primary", color: "#0F1720", height: "sm", action: { type: "uri", label: "🔗 ติดตามสถานะ", uri: trackUrl } },
+                  { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "🧾 ใบปะหน้าส่งเครื่อง", uri: buildShippingCoverUrl(repairCode) } },
                 ]},
               },
             }],
