@@ -40,13 +40,12 @@ async function handleEvent(event: any) {
       return;
     }
 
-    // Report repair guide
+    // Exact menu keywords
     if (text === "แจ้งซ่อม") {
       await lineClient.replyMessage({ replyToken, messages: [buildReportGuide()] });
       return;
     }
 
-    // Check status
     if (text === "เช็คสถานะ") {
       const user = await db.users.getByLine(userId);
       if (!user) {
@@ -62,43 +61,49 @@ async function handleEvent(event: any) {
       return;
     }
 
-    // Submit repair — flexible matching: "รุ่น:", "รุ่น :", "รุ่น", etc.
-    const modelMatch = text.match(/รุ่น\s*[:：]\s*(.+)/m);
-    const symptomMatch = text.match(/อาการ\s*[:：]\s*(.+)/m);
-    if (modelMatch && symptomMatch) {
-      const deviceModel = modelMatch[1].trim();
-      const symptoms = symptomMatch[1].trim();
-      let deviceType = "other";
-      const lower = deviceModel.toLowerCase();
-      if (lower.includes("iphone")) deviceType = "iphone";
-      else if (lower.includes("macbook") || lower.includes("mac")) deviceType = "macbook";
-      else if (lower.includes("ipad")) deviceType = "ipad";
-      else if (lower.includes("watch")) deviceType = "watch";
+    // AI-powered parsing — send to local LLM
+    try {
+      const ai = await db.ai.parse(text);
 
-      let customer = await db.users.getByLine(userId);
-      if (!customer) customer = await db.users.create({ lineUserId: userId, name: "LINE User", role: "customer" });
+      if (ai.intent === "repair" && ai.device && ai.symptoms) {
+        let customer = await db.users.getByLine(userId);
+        if (!customer) customer = await db.users.create({ lineUserId: userId, name: "LINE User", role: "customer" });
 
-      const shops = await db.shops.list();
-      if (shops.length === 0) {
-        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "⚠️ ระบบยังไม่พร้อม กรุณาติดต่อร้านโดยตรง" }] });
+        const shops = await db.shops.list();
+        if (shops.length === 0) {
+          await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "⚠️ ระบบยังไม่พร้อม กรุณาติดต่อร้านโดยตรง" }] });
+          return;
+        }
+
+        const { code: repairCode } = await db.repairs.generateCode();
+        const trackUrl = getTrackingUrl(repairCode);
+        const deviceType = ai.type || "other";
+        const deviceModel = ai.specs ? `${ai.device} (${ai.specs})` : ai.device;
+
+        await db.repairs.create({ repairCode, shopId: shops[0].id, customerId: customer.id, deviceModel, deviceType, symptoms: ai.symptoms, status: "submitted" });
+        await lineClient.replyMessage({ replyToken, messages: [buildSubmitSuccessFlex(repairCode, deviceModel, ai.symptoms, trackUrl)] });
         return;
       }
 
-      const { code: repairCode } = await db.repairs.generateCode();
-      const trackUrl = getTrackingUrl(repairCode);
+      if (ai.intent === "need_info" && ai.reply) {
+        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: ai.reply }] });
+        return;
+      }
 
-      await db.repairs.create({ repairCode, shopId: shops[0].id, customerId: customer.id, deviceModel, deviceType, symptoms, status: "submitted" });
-
-      await lineClient.replyMessage({ replyToken, messages: [buildSubmitSuccessFlex(repairCode, deviceModel, symptoms, trackUrl)] });
-      return;
+      if ((ai.intent === "inquiry" || ai.intent === "chat") && ai.reply) {
+        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: ai.reply }] });
+        return;
+      }
+    } catch {
+      // AI unavailable — fall through to default
     }
 
-    // Default: help
+    // Fallback
     await lineClient.replyMessage({
       replyToken,
       messages: [{
         type: "text",
-        text: `สวัสดีค่ะ 🙏 หมอแมค MorMac\n\nพิมพ์:\n• \"แจ้งซ่อม\" — แจ้งซ่อมเครื่อง\n• \"เช็คสถานะ\" — ดูงานซ่อมของคุณ\n• \"MOR-XXXX-XXXX\" — ค้นหาเลขซ่อม`,
+        text: `สวัสดีค่ะ 🙏 หมอแมค MorMac\n\nพิมพ์:\n• "แจ้งซ่อม" — แจ้งซ่อมเครื่อง\n• "เช็คสถานะ" — ดูงานซ่อมของคุณ\n• "MOR-XXXX-XXXX" — ค้นหาเลขซ่อม\n\nหรือพิมพ์บอกรุ่นและอาการได้เลยค่ะ เช่น\n"MacBook Pro จอแตก"`,
       }],
     });
   }

@@ -50,6 +50,9 @@ export const db = {
     save: (entries: { key: string; value: string }[]) => dbFetch<any>("/config", { method: "PUT", body: JSON.stringify(entries) }),
   },
   stats: () => dbFetch<any>("/stats"),
+  ai: {
+    parse: (message: string) => dbFetch<any>("/ai/parse", { method: "POST", body: JSON.stringify({ message }) }),
+  },
   reports: {
     summary: (period?: string) => dbFetch<any>(`/reports/summary${period ? `?period=${period}` : ""}`),
     byDevice: () => dbFetch<any[]>("/reports/by-device"),

@@ -185,6 +185,34 @@ app.get("/stats", async (c) => {
   return c.json({ totalRepairs, activeRepairs, completedRepairs, totalDevices, readyDevices, lowStockParts, recentRepairs });
 });
 
+// ===== AI Parse =====
+const SYSTEM_PROMPT = await Bun.file(path.resolve(import.meta.dir, "../ai/repair-assistant.md")).text();
+
+app.post("/ai/parse", async (c) => {
+  const { message } = await c.req.json();
+  if (!message) return c.json({ error: "Missing message" }, 400);
+
+  try {
+    const res = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gemma3:4b",
+        prompt: `ข้อความจากลูกค้า: "${message}"`,
+        system: SYSTEM_PROMPT,
+        stream: false,
+        options: { temperature: 0.1, num_predict: 300 },
+      }),
+    });
+    const data = await res.json() as { response: string };
+    const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return c.json({ intent: "chat", reply: data.response });
+    return c.json(JSON.parse(jsonMatch[0]));
+  } catch (e) {
+    return c.json({ intent: "chat", reply: "ขออภัยค่ะ ระบบขัดข้อง กรุณาลองใหม่" });
+  }
+});
+
 // ===== Reports =====
 app.get("/reports/summary", async (c) => {
   const period = c.req.query("period") || "all";
