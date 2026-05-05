@@ -23,7 +23,8 @@ export default async function RepairDetailPage({ params }: Props) {
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-xl font-bold">{repair.repairCode}</h1>
         <div className="flex gap-2">
-          <a href={`/api/repairs/cover?code=${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200">🖨️ ใบปะหน้าซอง</a>
+          <a href={`/api/repairs/jobsheet?code=${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-700">🖨️ ใบรับซ่อม</a>
+          <a href={`/api/repairs/cover?code=${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200">📋 ใบปะหน้า</a>
           <a href={`/track/${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200">🔗 Tracking</a>
         </div>
       </div>
