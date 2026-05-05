@@ -185,6 +185,106 @@ app.get("/stats", async (c) => {
   return c.json({ totalRepairs, activeRepairs, completedRepairs, totalDevices, readyDevices, lowStockParts, recentRepairs });
 });
 
+// ===== Reports =====
+app.get("/reports/summary", async (c) => {
+  const period = c.req.query("period") || "all";
+  const now = new Date();
+  let dateFilter: Date | undefined;
+  if (period === "month") dateFilter = new Date(now.getFullYear(), now.getMonth(), 1);
+  else if (period === "week") { dateFilter = new Date(now); dateFilter.setDate(dateFilter.getDate() - 7); }
+  else if (period === "year") dateFilter = new Date(now.getFullYear(), 0, 1);
+
+  const where = dateFilter ? { createdAt: { gte: dateFilter } } : {};
+  const doneWhere = { ...where, status: { in: ["done", "shipped", "returned"] } };
+
+  const [totalJobs, completedJobs, cancelledJobs, repairs] = await Promise.all([
+    prisma.repair.count({ where }),
+    prisma.repair.count({ where: doneWhere }),
+    prisma.repair.count({ where: { ...where, status: "cancelled" } }),
+    prisma.repair.findMany({
+      where: doneWhere,
+      select: { quotedPrice: true, finalPrice: true, partsCost: true, laborCost: true, deviceType: true, deviceModel: true, createdAt: true, completedAt: true },
+    }),
+  ]);
+
+  let totalRevenue = 0, totalPartsCost = 0, totalLaborCost = 0;
+  for (const r of repairs) {
+    totalRevenue += r.finalPrice || r.quotedPrice || 0;
+    totalPartsCost += r.partsCost || 0;
+    totalLaborCost += r.laborCost || 0;
+  }
+  const totalCost = totalPartsCost + totalLaborCost;
+  const totalProfit = totalRevenue - totalCost;
+  const avgTicket = completedJobs > 0 ? totalRevenue / completedJobs : 0;
+
+  const avgTurnaround = repairs.filter(r => r.completedAt && r.createdAt).reduce((sum, r) => {
+    return sum + (new Date(r.completedAt!).getTime() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+  }, 0) / (completedJobs || 1);
+
+  return c.json({
+    totalJobs, completedJobs, cancelledJobs,
+    activeJobs: totalJobs - completedJobs - cancelledJobs,
+    totalRevenue, totalPartsCost, totalLaborCost, totalCost, totalProfit, avgTicket,
+    avgTurnaroundDays: Math.round(avgTurnaround * 10) / 10,
+    margin: totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 100) : 0,
+  });
+});
+
+app.get("/reports/by-device", async (c) => {
+  const repairs = await prisma.repair.findMany({ select: { deviceType: true, status: true, finalPrice: true, quotedPrice: true } });
+  const map = new Map<string, { count: number; revenue: number; completed: number }>();
+  for (const r of repairs) {
+    const key = r.deviceType || "other";
+    const entry = map.get(key) || { count: 0, revenue: 0, completed: 0 };
+    entry.count++;
+    if (["done", "shipped", "returned"].includes(r.status)) {
+      entry.completed++;
+      entry.revenue += r.finalPrice || r.quotedPrice || 0;
+    }
+    map.set(key, entry);
+  }
+  return c.json(Array.from(map.entries()).map(([type, data]) => ({ type, ...data })).sort((a, b) => b.count - a.count));
+});
+
+app.get("/reports/by-status", async (c) => {
+  const repairs = await prisma.repair.findMany({ select: { status: true } });
+  const map = new Map<string, number>();
+  for (const r of repairs) map.set(r.status, (map.get(r.status) || 0) + 1);
+  return c.json(Array.from(map.entries()).map(([status, count]) => ({ status, count })).sort((a, b) => b.count - a.count));
+});
+
+app.get("/reports/top-parts", async (c) => {
+  const parts = await prisma.repairPart.findMany({ include: { part: true } });
+  const map = new Map<string, { name: string; totalQty: number; totalCost: number }>();
+  for (const p of parts) {
+    const key = p.partId;
+    const entry = map.get(key) || { name: p.part.name, totalQty: 0, totalCost: 0 };
+    entry.totalQty += p.quantity;
+    entry.totalCost += p.cost;
+    map.set(key, entry);
+  }
+  return c.json(Array.from(map.values()).sort((a, b) => b.totalQty - a.totalQty).slice(0, 15));
+});
+
+app.get("/reports/monthly-trend", async (c) => {
+  const repairs = await prisma.repair.findMany({
+    where: { status: { in: ["done", "shipped", "returned"] } },
+    select: { createdAt: true, finalPrice: true, quotedPrice: true, partsCost: true, laborCost: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const map = new Map<string, { month: string; jobs: number; revenue: number; cost: number }>();
+  for (const r of repairs) {
+    const d = new Date(r.createdAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const entry = map.get(key) || { month: key, jobs: 0, revenue: 0, cost: 0 };
+    entry.jobs++;
+    entry.revenue += r.finalPrice || r.quotedPrice || 0;
+    entry.cost += (r.partsCost || 0) + (r.laborCost || 0);
+    map.set(key, entry);
+  }
+  return c.json(Array.from(map.values()));
+});
+
 // ===== Repair Code Generator =====
 app.post("/generate-repair-code", async (c) => {
   const now = new Date();

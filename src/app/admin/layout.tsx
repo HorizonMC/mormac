@@ -17,6 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/parts" className="hover:text-white" style={{ color: c.mint }}>อะไหล่</Link>
           <Link href="/admin/customers" className="hover:text-white" style={{ color: c.mint }}>ลูกค้า</Link>
           <Link href="/admin/overview" className="hover:text-white" style={{ color: c.mint }}>ภาพรวม</Link>
+          <Link href="/admin/reports" className="hover:text-white" style={{ color: c.mint }}>รายงาน</Link>
           <Link href="/admin/settings" className="hover:text-white" style={{ color: c.mint }}>ตั้งค่า</Link>
         </div>
       </nav>
