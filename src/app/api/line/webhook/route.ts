@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { lineConfig, lineClient, pushRepairUpdate } from "@/lib/line";
+import {
+  lineConfig, lineClient,
+  buildRepairStatusFlex, buildRepairListFlex,
+  buildSubmitSuccessFlex, buildReportGuide,
+  pushRepairUpdate,
+} from "@/lib/line";
 import { db } from "@/lib/db-client";
 import { getTrackingUrl } from "@/lib/qr";
 
@@ -16,7 +21,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleEvent(event: any) {
   if (event.type === "message" && event.message.type === "text") {
     const text = event.message.text.trim();
@@ -24,32 +28,41 @@ async function handleEvent(event: any) {
     const replyToken: string = event.replyToken;
     if (!userId) return;
 
+    // Track by repair code
     if (text.startsWith("MOR-")) {
       const repair = await db.repairs.getByCode(text);
       const trackUrl = getTrackingUrl(text);
       if (!repair) {
-        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: `❌ ไม่พบเลขซ่อม ${text}` }] });
+        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: `❌ ไม่พบเลขซ่อม ${text}\n\nกรุณาตรวจสอบเลขซ่อมอีกครั้ง` }] });
       } else {
-        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: `📱 ${repair.deviceModel}\nเลขซ่อม: ${text}\nสถานะ: ${repair.status}\n\n🔗 ${trackUrl}` }] });
+        await lineClient.replyMessage({ replyToken, messages: [buildRepairStatusFlex(repair, trackUrl)] });
       }
       return;
     }
 
+    // Report repair guide
     if (text === "แจ้งซ่อม") {
-      await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "📱 กรุณาแจ้งข้อมูลเครื่อง:\n\nรุ่น: iPhone 15 Pro\nอาการ: จอแตก ทัชไม่ได้" }] });
+      await lineClient.replyMessage({ replyToken, messages: [buildReportGuide()] });
       return;
     }
 
+    // Check status
     if (text === "เช็คสถานะ") {
       const user = await db.users.getByLine(userId);
-      if (!user) { await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "ไม่พบรายการซ่อม\nกรุณาพิมพ์เลขซ่อม เช่น MOR-2605-0001" }] }); return; }
+      if (!user) {
+        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "ไม่พบรายการซ่อม\nกรุณาพิมพ์เลขซ่อม เช่น MOR-2605-0001" }] });
+        return;
+      }
       const repairs = (await db.repairs.list()).filter((r: any) => r.customerId === user.id).slice(0, 5);
-      if (repairs.length === 0) { await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "ไม่พบรายการซ่อม" }] }); return; }
-      const list = repairs.map((r: any) => `${r.repairCode} | ${r.deviceModel} | ${r.status}`).join("\n");
-      await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: `📋 รายการซ่อมล่าสุด:\n\n${list}` }] });
+      if (repairs.length === 0) {
+        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "ไม่พบรายการซ่อม" }] });
+        return;
+      }
+      await lineClient.replyMessage({ replyToken, messages: [buildRepairListFlex(repairs)] });
       return;
     }
 
+    // Submit repair
     if (text.includes("รุ่น:") && text.includes("อาการ:")) {
       const modelMatch = text.match(/รุ่น:\s*(.+)/);
       const symptomMatch = text.match(/อาการ:\s*(.+)/);
@@ -67,16 +80,28 @@ async function handleEvent(event: any) {
       if (!customer) customer = await db.users.create({ lineUserId: userId, name: "LINE User", role: "customer" });
 
       const shops = await db.shops.list();
-      if (shops.length === 0) { await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "⚠️ ระบบยังไม่พร้อม" }] }); return; }
+      if (shops.length === 0) {
+        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "⚠️ ระบบยังไม่พร้อม กรุณาติดต่อร้านโดยตรง" }] });
+        return;
+      }
 
       const { code: repairCode } = await db.repairs.generateCode();
       const trackUrl = getTrackingUrl(repairCode);
 
       await db.repairs.create({ repairCode, shopId: shops[0].id, customerId: customer.id, deviceModel, deviceType, symptoms, status: "submitted" });
 
-      await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: `✅ แจ้งซ่อมสำเร็จ!\n\n📱 ${deviceModel}\n🔧 ${symptoms}\n🔢 ${repairCode}\n\n🔗 ${trackUrl}` }] });
+      await lineClient.replyMessage({ replyToken, messages: [buildSubmitSuccessFlex(repairCode, deviceModel, symptoms, trackUrl)] });
       return;
     }
+
+    // Default: help
+    await lineClient.replyMessage({
+      replyToken,
+      messages: [{
+        type: "text",
+        text: `สวัสดีค่ะ 🙏 หมอแมค MorMac\n\nพิมพ์:\n• \"แจ้งซ่อม\" — แจ้งซ่อมเครื่อง\n• \"เช็คสถานะ\" — ดูงานซ่อมของคุณ\n• \"MOR-XXXX-XXXX\" — ค้นหาเลขซ่อม`,
+      }],
+    });
   }
 
   if (event.type === "postback") {
