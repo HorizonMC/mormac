@@ -201,6 +201,7 @@ app.post("/ai/parse", async (c) => {
         prompt: `ข้อความจากลูกค้า: "${message}"`,
         system: SYSTEM_PROMPT,
         stream: false,
+        keep_alive: "30m",
         options: { temperature: 0.1, num_predict: 300 },
       }),
     });
@@ -327,4 +328,12 @@ app.post("/generate-repair-code", async (c) => {
 
 const PORT = parseInt(process.env.DB_PORT || "4100");
 console.log(`MorMac DB Server running on :${PORT}`);
+
+// Pre-warm Ollama model
+fetch("http://localhost:11434/api/generate", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ model: "gemma3:4b", prompt: "hi", keep_alive: "30m", options: { num_predict: 1 } }),
+}).then(() => console.log("Ollama model pre-warmed")).catch(() => console.log("Ollama not available — AI will be slower"));
+
 export default { port: PORT, fetch: app.fetch };

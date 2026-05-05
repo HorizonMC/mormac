@@ -9,6 +9,8 @@ import {
 import { db } from "@/lib/db-client";
 import { getTrackingUrl } from "@/lib/qr";
 
+export const maxDuration = 25;
+
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const signature = req.headers.get("x-line-signature");
@@ -19,18 +21,6 @@ export async function POST(req: NextRequest) {
   const { events } = JSON.parse(body);
   for (const event of events) await handleEvent(event);
   return NextResponse.json({ ok: true });
-}
-
-function detectDeviceType(text: string): string {
-  const lower = text.toLowerCase();
-  if (lower.includes("iphone") || lower.includes("ไอโฟน")) return "iphone";
-  if (lower.includes("macbook") || lower.includes("แมคบุ๊ค") || lower.includes("mac book")) return "macbook";
-  if (lower.includes("imac") || lower.includes("ไอแมค")) return "imac";
-  if (lower.includes("ipad") || lower.includes("ไอแพด")) return "ipad";
-  if (lower.includes("watch") || lower.includes("วอช")) return "watch";
-  if (lower.includes("airpods") || lower.includes("แอร์พอด")) return "airpods";
-  if (lower.includes("mac") || lower.includes("แมค")) return "macbook";
-  return "other";
 }
 
 async function createRepair(userId: string, deviceModel: string, deviceType: string, symptoms: string) {
@@ -57,7 +47,7 @@ async function handleEvent(event: any) {
       const repair = await db.repairs.getByCode(text.toUpperCase());
       const trackUrl = getTrackingUrl(text.toUpperCase());
       if (!repair) {
-        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: `❌ ไม่พบเลขซ่อม ${text}\n\nกรุณาตรวจสอบเลขซ่อมอีกครั้ง` }] });
+        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: `❌ ไม่พบเลขซ่อม ${text}` }] });
       } else {
         await lineClient.replyMessage({ replyToken, messages: [buildRepairStatusFlex(repair, trackUrl)] });
       }
@@ -85,90 +75,32 @@ async function handleEvent(event: any) {
       return;
     }
 
-    // 3. Fast regex — "รุ่น:" format
-    const modelMatch = text.match(/รุ่น\s*[:：]\s*(.+)/m);
-    const symptomMatch = text.match(/อาการ\s*[:：]\s*(.+)/m);
-    if (modelMatch && symptomMatch) {
-      const deviceModel = modelMatch[1].trim();
-      const symptoms = symptomMatch[1].trim();
-      const result = await createRepair(userId, deviceModel, detectDeviceType(deviceModel), symptoms);
-      if (!result) {
-        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "⚠️ ระบบยังไม่พร้อม กรุณาติดต่อร้านโดยตรง" }] });
-        return;
-      }
-      await lineClient.replyMessage({ replyToken, messages: [buildSubmitSuccessFlex(result.repairCode, result.deviceModel, result.symptoms, result.trackUrl)] });
-      return;
-    }
-
-    // 4. Smart regex — detect device + symptom keywords in natural text
-    const deviceType = detectDeviceType(text);
-    const symptomKeywords = ["จอแตก", "จอร้าว", "จอดำ", "จอค้าง", "เปิดไม่ติด", "เปิดไม่ได้", "ชาร์จไม่เข้า", "แบตบวม", "แบตหมดเร็ว", "แบตเสื่อม", "ลำโพงไม่ดัง", "ไม่มีเสียง", "กล้องเสีย", "ค้าง", "ร้อน", "ช้า", "ร่วง", "ตก", "น้ำเข้า", "เปียก", "Face ID", "Touch ID", "ปุ่มเสีย", "คีย์บอร์ดเสีย", "trackpad", "wifi", "บลูทูธ"];
-    const foundSymptoms = symptomKeywords.filter(kw => text.includes(kw));
-
-    if (deviceType !== "other" && foundSymptoms.length > 0) {
-      const deviceNames: Record<string, string[]> = {
-        iphone: ["iPhone\\s*\\d+\\s*(Pro\\s*Max|Pro|Plus|mini)?", "ไอโฟน\\s*\\d+"],
-        macbook: ["MacBook\\s*(Pro|Air)?\\s*\\d*\\s*\"?", "Mac\\s*Book\\s*(Pro|Air)?", "แมคบุ๊ค\\s*(โปร|แอร์)?"],
-        ipad: ["iPad\\s*(Pro|Air|mini)?\\s*\\d*", "ไอแพด"],
-        imac: ["iMac\\s*\\d*", "ไอแมค"],
-        watch: ["Apple\\s*Watch\\s*(Ultra|SE)?\\s*\\d*"],
-        airpods: ["AirPods\\s*(Pro|Max)?\\s*\\d*"],
-      };
-      let deviceModel = deviceType;
-      for (const pattern of (deviceNames[deviceType] || [])) {
-        const m = text.match(new RegExp(pattern, "i"));
-        if (m) { deviceModel = m[0].trim(); break; }
-      }
-      const extraSpecs = text.match(/(\d+\s*GB|\d+\s*TB|ram\s*\d+|แรม\s*\d+|\d+\s*นิ้ว|\d+\s*inch)/gi);
-      if (extraSpecs) deviceModel += ` (${extraSpecs.join(", ")})`;
-      const symptoms = foundSymptoms.join(", ");
-
-      const result = await createRepair(userId, deviceModel, deviceType, symptoms);
-      if (!result) {
-        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: "⚠️ ระบบยังไม่พร้อม กรุณาติดต่อร้านโดยตรง" }] });
-        return;
-      }
-      await lineClient.replyMessage({ replyToken, messages: [buildSubmitSuccessFlex(result.repairCode, result.deviceModel, result.symptoms, result.trackUrl)] });
-      return;
-    }
-
-    // 5. AI fallback — local LLM (non-blocking, with timeout)
+    // 3. AI — ทุกข้อความอื่นส่งให้ LLM ตอบ
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const aiRes = await fetch(`${process.env.DB_API_URL || "http://localhost:4100"}/ai/parse`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": process.env.DB_API_KEY || "mormac-artron-2026" },
-        body: JSON.stringify({ message: text }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (aiRes.ok) {
-        const ai = await aiRes.json();
+      const ai = await db.ai.parse(text);
 
-        if (ai.intent === "repair" && ai.device && ai.symptoms) {
-          const result = await createRepair(userId, ai.specs ? `${ai.device} (${ai.specs})` : ai.device, ai.type || "other", ai.symptoms);
-          if (result) {
-            await lineClient.replyMessage({ replyToken, messages: [buildSubmitSuccessFlex(result.repairCode, result.deviceModel, result.symptoms, result.trackUrl)] });
-            return;
-          }
-        }
-
-        if (ai.reply) {
-          await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: ai.reply }] });
+      if (ai.intent === "repair" && ai.device && ai.symptoms) {
+        const result = await createRepair(userId, ai.specs ? `${ai.device} (${ai.specs})` : ai.device, ai.type || "other", ai.symptoms);
+        if (result) {
+          await lineClient.replyMessage({ replyToken, messages: [buildSubmitSuccessFlex(result.repairCode, result.deviceModel, result.symptoms, result.trackUrl)] });
           return;
         }
       }
+
+      if (ai.reply) {
+        await lineClient.replyMessage({ replyToken, messages: [{ type: "text", text: ai.reply }] });
+        return;
+      }
     } catch {
-      // AI timeout or error — fall through
+      // AI unavailable
     }
 
-    // 6. Default help
+    // 4. Fallback only when AI fails
     await lineClient.replyMessage({
       replyToken,
       messages: [{
         type: "text",
-        text: `สวัสดีค่ะ 🙏 หมอแมค MorMac\n\nบอกรุ่นเครื่องและอาการได้เลยค่ะ เช่น\n"iPhone 15 Pro จอแตก"\n"MacBook Pro ชาร์จไม่เข้า"\n\nหรือพิมพ์:\n• "เช็คสถานะ" — ดูงานซ่อม\n• "MOR-XXXX-XXXX" — ค้นหาเลขซ่อม`,
+        text: `สวัสดีค่ะ 🙏 หมอแมค MorMac\n\nบอกรุ่นเครื่องและอาการได้เลยค่ะ เช่น\n"iPhone 15 Pro จอแตก"\n"MacBook Pro ชาร์จไม่เข้า"`,
       }],
     });
   }
