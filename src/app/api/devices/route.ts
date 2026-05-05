@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db-client";
 
 export async function GET() {
-  const devices = await prisma.device.findMany({
-    include: { shop: true },
-    orderBy: { createdAt: "desc" },
-  });
-  return NextResponse.json(devices);
+  return NextResponse.json(await db.devices.list());
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const device = await prisma.device.create({ data: body });
-  return NextResponse.json(device, { status: 201 });
+  return NextResponse.json(await db.devices.create(await req.json()), { status: 201 });
 }
 
 export async function PATCH(req: NextRequest) {
   const { id, ...data } = await req.json();
-  const device = await prisma.device.update({ where: { id }, data });
-  return NextResponse.json(device);
+  return NextResponse.json(await db.devices.update(id, data));
 }

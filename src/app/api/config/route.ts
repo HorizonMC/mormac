@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBrand, saveBrand } from "@/lib/brand";
 
 export async function GET() {
-  const config = await getBrand();
-  return NextResponse.json(config);
+  return NextResponse.json(await getBrand());
 }
 
 export async function PUT(req: NextRequest) {
   const body = await req.json();
   await saveBrand(body);
-  const updated = await getBrand();
-  return NextResponse.json(updated);
+  return NextResponse.json(await getBrand());
 }

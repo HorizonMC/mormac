@@ -1,4 +1,4 @@
-import { prisma } from "./prisma";
+import { db } from "./db-client";
 
 export interface BrandConfig {
   name: string;
@@ -40,14 +40,10 @@ export const brand = defaults;
 
 export async function getBrand(): Promise<BrandConfig> {
   try {
-    const rows = await prisma.config.findMany({
-      where: { key: { startsWith: "brand." } },
-    });
-
-    if (rows.length === 0) return defaults;
+    const rows = await db.config.get();
+    if (!rows || rows.length === 0) return defaults;
 
     const cfg = { ...defaults, colors: { ...defaults.colors } };
-
     for (const row of rows) {
       const field = row.key.replace("brand.", "");
       switch (field) {
@@ -64,7 +60,6 @@ export async function getBrand(): Promise<BrandConfig> {
         case "colors.bg": cfg.colors.bg = row.value; break;
       }
     }
-
     return cfg;
   } catch {
     return defaults;
@@ -73,7 +68,6 @@ export async function getBrand(): Promise<BrandConfig> {
 
 export async function saveBrand(config: Partial<BrandConfig>): Promise<void> {
   const entries: { key: string; value: string }[] = [];
-
   if (config.name !== undefined) entries.push({ key: "brand.name", value: config.name });
   if (config.nameTh !== undefined) entries.push({ key: "brand.nameTh", value: config.nameTh });
   if (config.tagline !== undefined) entries.push({ key: "brand.tagline", value: config.tagline });
@@ -88,12 +82,5 @@ export async function saveBrand(config: Partial<BrandConfig>): Promise<void> {
     if (c.accent) entries.push({ key: "brand.colors.accent", value: c.accent });
     if (c.bg) entries.push({ key: "brand.colors.bg", value: c.bg });
   }
-
-  for (const { key, value } of entries) {
-    await prisma.config.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value },
-    });
-  }
+  await db.config.save(entries);
 }

@@ -1,28 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db-client";
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const shopId = searchParams.get("shopId");
-
-  const parts = await prisma.part.findMany({
-    where: shopId ? { shopId } : undefined,
-    orderBy: { name: "asc" },
-  });
-
-  return NextResponse.json(parts);
+export async function GET() {
+  return NextResponse.json(await db.parts.list());
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-
-  const part = await prisma.part.create({ data: body });
-  return NextResponse.json(part, { status: 201 });
+  return NextResponse.json(await db.parts.create(await req.json()), { status: 201 });
 }
 
 export async function PATCH(req: NextRequest) {
   const { id, ...data } = await req.json();
-
-  const part = await prisma.part.update({ where: { id }, data });
-  return NextResponse.json(part);
+  return NextResponse.json(await db.parts.update(id, data));
 }

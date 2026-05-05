@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db-client";
 import { repairStatusText } from "@/lib/line";
 import { getBrand } from "@/lib/brand";
 import { notFound } from "next/navigation";
@@ -14,11 +14,7 @@ export default async function TrackPage({ params }: Props) {
   const brand = await getBrand();
   const c = brand.colors;
 
-  const repair = await prisma.repair.findUnique({
-    where: { repairCode: code },
-    include: { timeline: { orderBy: { createdAt: "asc" } } },
-  });
-
+  const repair = await db.repairs.getByCode(code);
   if (!repair) notFound();
 
   const currentIdx = STATUSES.indexOf(repair.status);
@@ -54,39 +50,27 @@ export default async function TrackPage({ params }: Props) {
 
       <div className="bg-white rounded-2xl shadow-sm p-6" style={{ borderColor: `${c.mint}33`, borderWidth: 1 }}>
         <p className="text-sm font-bold mb-4" style={{ color: c.dark }}>Timeline</p>
-        <div className="space-y-0">
-          {STATUSES.map((s, i) => {
-            const event = repair.timeline.find((e) => e.status === s);
-            const isDone = i <= currentIdx;
-            const isCurrent = i === currentIdx;
-
-            return (
-              <div key={s} className="flex items-start gap-3 pb-3 last:pb-0">
-                <div className="flex flex-col items-center">
-                  <div
-                    className="w-3 h-3 rounded-full border-2"
-                    style={{
-                      background: isCurrent ? c.accent : isDone ? c.teal : "white",
-                      borderColor: isCurrent ? c.accent : isDone ? c.teal : `${c.mint}66`,
-                      boxShadow: isCurrent ? `0 0 0 4px ${c.accent}33` : "none",
-                    }}
-                  />
-                  {i < STATUSES.length - 1 && (
-                    <div className="w-0.5 h-5" style={{ background: isDone ? c.teal : `${c.mint}33` }} />
-                  )}
-                </div>
-                <div className={`-mt-0.5 ${isDone ? "" : "opacity-30"}`}>
-                  <p className="text-sm font-medium" style={{ color: c.dark }}>{repairStatusText(s)}</p>
-                  {event && (
-                    <p className="text-xs" style={{ color: c.teal }}>
-                      {event.createdAt.toLocaleDateString("th-TH")} {event.createdAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  )}
-                </div>
+        {STATUSES.map((s, i) => {
+          const event = repair.timeline?.find((e: any) => e.status === s);
+          const isDone = i <= currentIdx;
+          const isCurrent = i === currentIdx;
+          return (
+            <div key={s} className="flex items-start gap-3 pb-3 last:pb-0">
+              <div className="flex flex-col items-center">
+                <div className="w-3 h-3 rounded-full border-2" style={{
+                  background: isCurrent ? c.accent : isDone ? c.teal : "white",
+                  borderColor: isCurrent ? c.accent : isDone ? c.teal : `${c.mint}66`,
+                  boxShadow: isCurrent ? `0 0 0 4px ${c.accent}33` : "none",
+                }} />
+                {i < STATUSES.length - 1 && <div className="w-0.5 h-5" style={{ background: isDone ? c.teal : `${c.mint}33` }} />}
               </div>
-            );
-          })}
-        </div>
+              <div className={`-mt-0.5 ${isDone ? "" : "opacity-30"}`}>
+                <p className="text-sm font-medium" style={{ color: c.dark }}>{repairStatusText(s)}</p>
+                {event && <p className="text-xs" style={{ color: c.teal }}>{new Date(event.createdAt).toLocaleDateString("th-TH")}</p>}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {repair.quotedPrice && (
@@ -95,15 +79,10 @@ export default async function TrackPage({ params }: Props) {
             <p className="text-xs" style={{ color: c.teal }}>ราคาประเมิน</p>
             <p className="text-xl font-bold" style={{ color: c.dark }}>฿{repair.quotedPrice.toLocaleString()}</p>
           </div>
-          {repair.status === "quoted" && (
-            <span className="text-xs px-3 py-1 rounded-full font-medium" style={{ background: `${c.accent}1a`, color: c.dark }}>รอยืนยัน</span>
-          )}
         </div>
       )}
 
-      <p className="text-center text-xs mt-6" style={{ color: c.teal }}>
-        {brand.name} {brand.nameTh} — {brand.tagline}
-      </p>
+      <p className="text-center text-xs mt-6" style={{ color: c.teal }}>{brand.name} {brand.nameTh}</p>
     </div>
   );
 }
