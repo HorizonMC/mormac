@@ -14,11 +14,20 @@ export function QrScanner({ dark, teal, accent }: { dark: string; teal: string; 
     return /Line\//i.test(navigator.userAgent);
   }
 
+  function openInExternalBrowser() {
+    const host = window.location.host;
+    const path = window.location.pathname + window.location.search;
+    const isAndroid = /android/i.test(navigator.userAgent);
+    if (isAndroid) {
+      window.location.href = `intent://${host}${path}#Intent;scheme=https;package=com.android.chrome;end`;
+    } else {
+      window.location.href = `x-safari-https://${host}${path}`;
+    }
+  }
+
   async function startScanner() {
     if (isLineApp()) {
-      const url = window.location.href.split("#")[0];
-      const sep = url.includes("?") ? "&" : "?";
-      window.location.href = url + sep + "openExternalBrowser=1";
+      openInExternalBrowser();
       return;
     }
 
