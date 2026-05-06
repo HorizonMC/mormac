@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getBrand } from "@/lib/brand";
+import { QrScanner } from "./qr-scanner";
 
 interface Props {
   searchParams: Promise<{ code?: string }>;
@@ -34,7 +35,13 @@ export default async function TrackSearchPage({ searchParams }: Props) {
           </button>
         </form>
 
-        <p className="text-xs mt-6" style={{ color: c.teal }}>หรือสแกน QR Code บนใบปะหน้าซอง</p>
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px" style={{ background: `${c.teal}33` }} />
+          <span className="text-xs" style={{ color: c.teal }}>หรือ</span>
+          <div className="flex-1 h-px" style={{ background: `${c.teal}33` }} />
+        </div>
+
+        <QrScanner dark={c.dark} teal={c.teal} accent={c.accent} />
       </div>
     </div>
   );
