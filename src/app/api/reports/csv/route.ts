@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
   ];
 
   const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
-  const filename = `mormac-repairs-${formatFilenameDate(new Date())}.csv`;
+  const filename = `ipartstore-repairs-${formatFilenameDate(new Date())}.csv`;
 
   return new Response(csv, {
     headers: {

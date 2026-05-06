@@ -45,7 +45,7 @@ export default async function TrackPage({ params }: Props) {
         <div className="max-w-md mx-auto px-4 pt-5 pb-6">
           <div className="flex items-center justify-between mb-5">
             <Link href="/track" className="flex items-center gap-2 transition hover:opacity-80">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black" style={{ background: c.accent, color: c.dark }}>M</div>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[9px] font-black" style={{ background: c.accent, color: c.dark }}>iP</div>
               <span className="text-white font-bold text-sm">{brand.name}</span>
             </Link>
             <Link href="/track" className="text-xs px-3 py-1.5 rounded-lg transition hover:opacity-80" style={{ background: `${c.mint}15`, color: c.mint }}>

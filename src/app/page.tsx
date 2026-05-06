@@ -6,19 +6,19 @@ export default async function HomePage() {
   const c = brand.colors;
 
   const services = [
-    { icon: "📱", title: "ซ่อมจอ iPhone", desc: "จอแท้ / OEM ทุกรุ่น รับประกัน 6 เดือน" },
-    { icon: "🔋", title: "เปลี่ยนแบตเตอรี่", desc: "แบตแท้คุณภาพสูง ประกัน 1 ปี" },
-    { icon: "💻", title: "ซ่อม MacBook", desc: "บอร์ด คีย์บอร์ด จอ แบต ครบวงจร" },
-    { icon: "📋", title: "ซ่อม iPad", desc: "เปลี่ยนจอ แบต พอร์ตชาร์จ" },
-    { icon: "⌚", title: "Apple Watch", desc: "เปลี่ยนจอ แบต กระจก" },
-    { icon: "📦", title: "ส่งซ่อมทางไปรษณีย์", desc: "แจ้งผ่าน LINE ส่งเครื่องมา ซ่อมเสร็จส่งกลับ" },
+    { icon: "💬", title: "LINE OA Chatbot", desc: "รับแจ้งซ่อมอัตโนมัติ AI ตอบลูกค้า 24 ชม." },
+    { icon: "📋", title: "ใบแจ้งซ่อม", desc: "ออกใบรับซ่อม ใบปะหน้า QR Code ติดตามงาน" },
+    { icon: "🔧", title: "จัดการช่าง", desc: "มอบหมายงาน แยกสิทธิ์ ดูผลงานรายคน" },
+    { icon: "📦", title: "คลังอะไหล่", desc: "เบิกอะไหล่ ตัด stock อัตโนมัติ แจ้งเตือนหมด" },
+    { icon: "📊", title: "รายงานกำไร", desc: "กำไรรายงาน รายช่าง รายเดือน Margin %" },
+    { icon: "🎨", title: "White-Label", desc: "ตั้งชื่อร้าน โลโก้ สี ของตัวเอง" },
   ];
 
   const steps = [
-    { num: "1", title: "แจ้งซ่อมผ่าน LINE", desc: "บอกรุ่นและอาการ แอดมินรับเรื่องทันที" },
-    { num: "2", title: "ส่งเครื่องมาที่ร้าน", desc: "ส่งไปรษณีย์หรือนำมาเอง พร้อมใบรับซ่อม" },
-    { num: "3", title: "ตรวจสอบและประเมินราคา", desc: "ช่างวินิจฉัย แจ้งราคาก่อนซ่อม" },
-    { num: "4", title: "รับเครื่องคืน", desc: "ซ่อมเสร็จส่งกลับ พร้อมใบรับประกัน" },
+    { num: "1", title: "สมัครใช้งาน", desc: "ตั้งชื่อร้าน เชื่อมต่อ LINE OA ตั้งค่าแบรนด์" },
+    { num: "2", title: "เพิ่มช่างและอะไหล่", desc: "สร้างบัญชีช่าง กำหนดสิทธิ์ นำเข้า stock" },
+    { num: "3", title: "ลูกค้าแจ้งซ่อมผ่าน LINE", desc: "AI chatbot รับเรื่อง เก็บข้อมูล ถ่ายรูปอัตโนมัติ" },
+    { num: "4", title: "บริหาร ติดตาม วิเคราะห์", desc: "มอบหมายงาน ติดตาม สรุปกำไรทุกมิติ" },
   ];
 
   return (
@@ -26,7 +26,7 @@ export default async function HomePage() {
       {/* Navigation */}
       <nav className="flex items-center justify-between px-5 py-4 max-w-5xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg font-black" style={{ background: c.accent, color: c.dark }}>M</div>
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black" style={{ background: c.accent, color: c.dark }}>iP</div>
           <span className="text-white font-bold text-lg">{brand.name}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -45,15 +45,15 @@ export default async function HomePage() {
           <div className="max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6" style={{ background: `${c.accent}15`, color: c.accent }}>
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.accent }} />
-              Apple Device Specialist
+              Professional Repair Platform
             </div>
             <h1 className="text-4xl md:text-5xl font-black text-white leading-tight mb-4">
-              {brand.nameTh}
-              <span className="block mt-1" style={{ color: c.accent }}>ซ่อมดี มีประกัน</span>
+              {brand.name}
+              <span className="block mt-1" style={{ color: c.accent }}>ระบบจัดการร้านซ่อม</span>
             </h1>
             <p className="text-base md:text-lg leading-relaxed mb-8" style={{ color: `${c.mint}cc` }}>
-              ศูนย์ซ่อม Apple ครบวงจร iPhone, MacBook, iPad, Apple Watch
-              โดยช่างผู้เชี่ยวชาญ ส่งซ่อมได้ทั่วประเทศ
+              แพลตฟอร์มบริหารร้านซ่อมครบวงจร รับงาน ติดตามสถานะ
+              จัดการอะไหล่ คำนวณต้นทุน-กำไร เชื่อมต่อ LINE OA อัตโนมัติ
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
@@ -84,9 +84,9 @@ export default async function HomePage() {
       <div style={{ background: `${c.accent}08` }}>
         <div className="max-w-5xl mx-auto px-5 py-6 flex justify-around">
           {[
-            { val: "1,000+", label: "เครื่องที่ซ่อมแล้ว" },
-            { val: "98%", label: "ลูกค้าพึงพอใจ" },
-            { val: "6 เดือน", label: "รับประกัน" },
+            { val: "All-in-One", label: "ระบบครบวงจร" },
+            { val: "LINE AI", label: "Chatbot อัตโนมัติ" },
+            { val: "Real-time", label: "ติดตามสถานะทันที" },
           ].map((s, i) => (
             <div key={i} className="text-center">
               <p className="text-xl md:text-2xl font-black" style={{ color: c.accent }}>{s.val}</p>
@@ -190,27 +190,26 @@ export default async function HomePage() {
       <section className="py-16 px-5" style={{ background: c.dark }}>
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
-            เครื่องมีปัญหา? <span style={{ color: c.accent }}>แจ้งซ่อมเลย</span>
+            พร้อมยกระดับร้านซ่อม? <span style={{ color: c.accent }}>เริ่มเลย</span>
           </h2>
           <p className="text-sm mb-8" style={{ color: `${c.mint}aa` }}>
-            แอดไลน์แจ้งรุ่นและอาการ ช่างประเมินราคาให้ทันที ไม่มีค่าตรวจเช็ค
+            เชื่อมต่อ LINE OA ของร้านคุณ ระบบ AI จัดการรับงาน ติดตามสถานะ คำนวณกำไรให้อัตโนมัติ
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
-              href="#"
+            <Link
+              href="/login"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold text-sm transition hover:scale-[1.02]"
-              style={{ background: "#06C755", color: "white" }}
+              style={{ background: c.accent, color: c.dark }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
-              แอดไลน์แจ้งซ่อม
-            </a>
+              เข้าสู่ระบบเจ้าของร้าน
+            </Link>
             {brand.phone && (
               <a
                 href={`tel:${brand.phone}`}
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold text-sm border-2 transition hover:scale-[1.02]"
                 style={{ borderColor: `${c.mint}33`, color: c.mint }}
               >
-                📞 โทร {brand.phone}
+                📞 สอบถาม {brand.phone}
               </a>
             )}
           </div>
@@ -221,7 +220,7 @@ export default async function HomePage() {
       <footer className="border-t px-5 py-8" style={{ background: c.dark, borderColor: `${c.mint}11` }}>
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md flex items-center justify-center text-xs font-black" style={{ background: c.accent, color: c.dark }}>M</div>
+            <div className="w-7 h-7 rounded-md flex items-center justify-center text-[8px] font-black" style={{ background: c.accent, color: c.dark }}>iP</div>
             <div>
               <span className="text-white font-bold text-sm">{brand.name}</span>
               <span className="text-xs ml-2" style={{ color: `${c.mint}88` }}>{brand.nameTh}</span>

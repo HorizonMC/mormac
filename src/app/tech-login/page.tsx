@@ -20,8 +20,8 @@ export default async function TechLoginPage() {
       <div className="relative w-full max-w-sm space-y-8">
         {/* Logo + Brand */}
         <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black mx-auto mb-4 shadow-lg" style={{ background: c.accent, color: c.dark }}>
-            M
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-black mx-auto mb-4 shadow-lg" style={{ background: c.accent, color: c.dark }}>
+            iP
           </div>
           <h1 className="text-2xl font-black text-white">{brand.name}</h1>
           <p className="text-sm mt-1" style={{ color: c.mint }}>

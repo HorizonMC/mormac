@@ -19,9 +19,9 @@ export interface BrandConfig {
 }
 
 const defaults: BrandConfig = {
-  name: "MorMac",
-  nameTh: "หมอแมค",
-  tagline: "Apple Device Specialist",
+  name: "iPartStore Fix",
+  nameTh: "ศูนย์ซ่อมมืออาชีพ",
+  tagline: "Professional Device Repair Platform",
   phone: "",
   address: "",
   logo: "/brand/logo.png",
