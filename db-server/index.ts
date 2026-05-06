@@ -239,7 +239,7 @@ app.get("/shops", async (c) => {
 
 // ===== Config =====
 app.get("/config", async (c) => {
-  const rows = await prisma.config.findMany({ where: { key: { startsWith: "brand." } } });
+  const rows = await prisma.config.findMany({ where: { OR: [{ key: { startsWith: "brand." } }, { key: { startsWith: "line." } }] } });
   return c.json(rows);
 });
 
