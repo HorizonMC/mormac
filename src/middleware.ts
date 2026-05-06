@@ -1,28 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 
 const SECRET = process.env.LINE_CHANNEL_SECRET || "mormac-auth-secret";
 
-function verifyToken(token: string): boolean {
+async function verifyToken(token: string): Promise<boolean> {
   try {
     const [payloadB64, sig] = token.split(".");
     if (!payloadB64 || !sig) return false;
-    const payload = Buffer.from(payloadB64, "base64").toString();
-    const expected = crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
-    if (sig.length !== expected.length) return false;
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
+    const payload = atob(payloadB64);
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", encoder.encode(SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const sigBytes = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+    const expected = Array.from(new Uint8Array(sigBytes)).map(b => b.toString(16).padStart(2, "0")).join("");
+    if (sig !== expected) return false;
     const data = JSON.parse(payload);
-    const age = Date.now() - data.iat;
-    return age < 7 * 24 * 60 * 60 * 1000;
+    return Date.now() - data.iat < 7 * 24 * 60 * 60 * 1000;
   } catch {
     return false;
   }
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   if (req.nextUrl.pathname.startsWith("/admin")) {
     const auth = req.cookies.get("admin_token");
-    if (!auth || !verifyToken(auth.value)) {
+    if (!auth || !(await verifyToken(auth.value))) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
   }
