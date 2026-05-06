@@ -14,7 +14,7 @@ const API_KEY = process.env.DB_API_KEY || "mormac-secret-key-change-me";
 
 const app = new Hono();
 
-app.use("*", cors({ origin: ["https://mormac.vercel.app", "http://localhost:3000", "http://localhost:3100", "http://localhost:3200"] }));
+app.use("*", cors({ origin: ["https://ipartstore-fix.vercel.app", "https://mormac.vercel.app", "http://localhost:3000", "http://localhost:3100", "http://localhost:3200"] }));
 
 app.use("*", async (c, next) => {
   if (c.req.path.startsWith("/uploads/")) {
@@ -281,8 +281,15 @@ app.get("/stats", async (c) => {
 
 // ===== AI =====
 const SYSTEM_PROMPT = await Bun.file(path.resolve(import.meta.dir, "../ai/repair-assistant.md")).text();
-const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
+let LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
 const BRAND = { dark: "#0F1720", accent: "#28EF33", mint: "#85C1B2", white: "#FFFFFF" };
+
+async function getLineToken(): Promise<string> {
+  if (LINE_TOKEN) return LINE_TOKEN;
+  const cfg = await prisma.config.findUnique({ where: { key: "line.channelAccessToken" } });
+  if (cfg?.value) { LINE_TOKEN = cfg.value; return LINE_TOKEN; }
+  return "";
+}
 
 type RepairDraftMeta = {
   kind: "repairDraft";
@@ -299,8 +306,9 @@ type RepairDraftMeta = {
 
 async function downloadLineImage(messageId: string): Promise<string | null> {
   try {
+    const token = await getLineToken();
     const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
-      headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
     const buffer = await res.arrayBuffer();
@@ -383,11 +391,11 @@ function macSpecsHelpText() {
 }
 
 function buildShippingCoverUrl(repairCode: string) {
-  return `https://mormac.vercel.app/api/repairs/cover?code=${encodeURIComponent(repairCode)}`;
+  return `https://ipartstore-fix.vercel.app/api/repairs/cover?code=${encodeURIComponent(repairCode)}`;
 }
 
 function buildTrackingUrl(repairCode: string) {
-  return `https://mormac.vercel.app/track/${encodeURIComponent(repairCode)}`;
+  return `https://ipartstore-fix.vercel.app/track/${encodeURIComponent(repairCode)}`;
 }
 
 function repairStatusText(status: string): string {
@@ -575,10 +583,11 @@ async function nextRepairCode() {
 }
 
 async function pushRepairCreated(userId: string, repairCode: string, fullName: string, draft: RepairDraftMeta) {
-  const trackUrl = `https://mormac.vercel.app/track/${repairCode}`;
+  const token = await getLineToken();
+  const trackUrl = `https://ipartstore-fix.vercel.app/track/${repairCode}`;
   await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
-    headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       to: userId,
       messages: [{
@@ -636,17 +645,19 @@ async function aiParse(message: string) {
 }
 
 async function linePush(userId: string, text: string) {
+  const token = await getLineToken();
   await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
-    headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ to: userId, messages: [{ type: "text", text }] }),
   });
 }
 
 async function linePushFlex(userId: string, message: Record<string, unknown>) {
+  const token = await getLineToken();
   const res = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
-    headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ to: userId, messages: [message] }),
   });
   if (!res.ok) throw new Error(`LINE push failed: ${res.status} ${await res.text()}`);
@@ -835,7 +846,7 @@ app.post("/ai/handle", async (c) => {
           await linePush(
             userId,
             code
-              ? `รายการนี้ถูกแจ้งไว้แล้วค่ะ เลขซ่อม ${code}\nติดตามสถานะ: https://mormac.vercel.app/track/${code}`
+              ? `รายการนี้ถูกแจ้งไว้แล้วค่ะ เลขซ่อม ${code}\nติดตามสถานะ: https://ipartstore-fix.vercel.app/track/${code}`
               : "รายการนี้อยู่ระหว่างรอชื่อจริงและนามสกุลค่ะ กรุณาส่งชื่อจริงและนามสกุล เช่น สมชาย ใจดี"
           );
           return;

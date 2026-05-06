@@ -4,8 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BrandConfig } from "@/lib/brand";
 
-export function SettingsForm({ initial }: { initial: BrandConfig }) {
+export function SettingsForm({ initial, lineConfig }: { initial: BrandConfig; lineConfig?: Record<string, string> }) {
   const [config, setConfig] = useState(initial);
+  const [line, setLine] = useState({
+    channelAccessToken: lineConfig?.channelAccessToken || "",
+    channelSecret: lineConfig?.channelSecret || "",
+    oaId: lineConfig?.oaId || "",
+  });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const router = useRouter();
@@ -26,7 +31,7 @@ export function SettingsForm({ initial }: { initial: BrandConfig }) {
       await fetch("/api/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify({ ...config, line }),
       });
       setSaved(true);
       router.refresh();
@@ -58,6 +63,39 @@ export function SettingsForm({ initial }: { initial: BrandConfig }) {
           <ColorField label="Accent (เน้น)" value={c.accent} onChange={(v) => set("colors.accent", v)} teal={c.teal} dark={c.dark} />
           <ColorField label="Background" value={c.bg} onChange={(v) => set("colors.bg", v)} teal={c.teal} dark={c.dark} />
         </div>
+      </Section>
+
+      {/* LINE OA */}
+      <Section title="LINE Official Account" dark={c.dark}>
+        <div className="rounded-xl p-3 mb-4 text-xs leading-relaxed" style={{ background: `${c.accent}08`, color: c.teal }}>
+          <p className="font-bold mb-1" style={{ color: c.dark }}>วิธีเชื่อมต่อ LINE OA</p>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>เข้า <span className="font-mono">developers.line.biz</span> → เลือก Channel</li>
+            <li>เปิด Messaging API → คัดลอก Channel Secret</li>
+            <li>Issue Channel Access Token (Long-lived) → คัดลอก</li>
+            <li>ตั้ง Webhook URL: <span className="font-mono text-[10px]">https://ipartstore-fix.vercel.app/api/line/webhook</span></li>
+            <li>เปิด Use webhook = ON / ปิด Auto-reply</li>
+          </ol>
+        </div>
+        <Field label="LINE OA ID (เช่น @mormac)" value={line.oaId} onChange={(v) => { setLine(l => ({ ...l, oaId: v })); setSaved(false); }} dark={c.dark} teal={c.teal} />
+        <div>
+          <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: c.teal }}>Channel Access Token</label>
+          <textarea
+            value={line.channelAccessToken}
+            onChange={(e) => { setLine(l => ({ ...l, channelAccessToken: e.target.value })); setSaved(false); }}
+            rows={3}
+            className="w-full rounded-xl px-4 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 transition-all resize-none"
+            style={{ border: `1px solid ${c.dark}12`, color: c.dark }}
+            placeholder="กดวางจาก LINE Developers Console"
+          />
+        </div>
+        <Field label="Channel Secret" value={line.channelSecret} onChange={(v) => { setLine(l => ({ ...l, channelSecret: v })); setSaved(false); }} dark={c.dark} teal={c.teal} />
+        {line.channelAccessToken && line.channelSecret && (
+          <div className="flex items-center gap-2 text-xs font-bold" style={{ color: c.accent }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: c.accent }} />
+            LINE OA เชื่อมต่อแล้ว
+          </div>
+        )}
       </Section>
 
       {/* Preview */}
