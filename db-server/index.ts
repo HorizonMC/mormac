@@ -78,6 +78,13 @@ app.patch("/repairs/:id/status", async (c) => {
   await prisma.repair.update({ where: { id }, data: updateData });
   if (status) await prisma.repairEvent.create({ data: { repairId: id, status, note, actor } });
   const repair = await prisma.repair.findUnique({ where: { id }, include: { customer: true } });
+  if (status && status !== "pending_customer_name" && repair?.customer?.lineUserId) {
+    try {
+      await pushRepairStatusNotification(repair.customer.lineUserId, repair);
+    } catch (error) {
+      console.error("LINE status push error:", error);
+    }
+  }
   return c.json(repair);
 });
 
@@ -188,6 +195,7 @@ app.get("/stats", async (c) => {
 // ===== AI =====
 const SYSTEM_PROMPT = await Bun.file(path.resolve(import.meta.dir, "../ai/repair-assistant.md")).text();
 const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
+const BRAND = { dark: "#0F1720", accent: "#28EF33", mint: "#85C1B2", white: "#FFFFFF" };
 
 type RepairDraftMeta = {
   kind: "repairDraft";
@@ -257,6 +265,183 @@ function macSpecsHelpText() {
 
 function buildShippingCoverUrl(repairCode: string) {
   return `https://mormac.vercel.app/api/repairs/cover?code=${encodeURIComponent(repairCode)}`;
+}
+
+function buildTrackingUrl(repairCode: string) {
+  return `https://mormac.vercel.app/track/${encodeURIComponent(repairCode)}`;
+}
+
+function repairStatusText(status: string): string {
+  const map: Record<string, string> = {
+    submitted: "แจ้งซ่อมแล้ว",
+    received: "ร้านรับเครื่องแล้ว",
+    diagnosing: "กำลังตรวจอาการ",
+    quoted: "ประเมินราคาแล้ว",
+    confirmed: "ยืนยันซ่อม",
+    repairing: "กำลังซ่อม",
+    qc: "ตรวจสอบคุณภาพ",
+    done: "ซ่อมเสร็จ",
+    shipped: "จัดส่งแล้ว",
+    returned: "ลูกค้ารับคืนแล้ว",
+    cancelled: "ยกเลิก",
+    pending_customer_info: "รอข้อมูลลูกค้า",
+  };
+  return map[status] || status;
+}
+
+function repairStatusColor(status: string): string {
+  if (["done", "shipped", "returned"].includes(status)) return BRAND.accent;
+  if (["repairing", "qc", "confirmed"].includes(status)) return "#3B82F6";
+  if (status === "quoted") return "#F59E0B";
+  if (status === "cancelled") return "#EF4444";
+  return "#4A7A8A";
+}
+
+function flexRow(label: string, value: string) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    contents: [
+      { type: "text", text: label, size: "sm", color: "#888888", flex: 3 },
+      { type: "text", text: value, size: "sm", weight: "bold", color: BRAND.dark, flex: 7, wrap: true },
+    ],
+  };
+}
+
+function priceText(price: number | null | undefined) {
+  return typeof price === "number" ? `฿${price.toLocaleString("th-TH")}` : "รอดูรายละเอียด";
+}
+
+function buildRepairStatusFlex(repair: {
+  repairCode: string;
+  status: string;
+  deviceModel: string;
+  symptoms: string;
+  quotedPrice?: number | null;
+}) {
+  const statusText = repairStatusText(repair.status);
+  const statusColor = repairStatusColor(repair.status);
+  const trackUrl = buildTrackingUrl(repair.repairCode);
+
+  return {
+    type: "flex",
+    altText: `${statusText} - ${repair.repairCode}`,
+    contents: {
+      type: "bubble",
+      styles: {
+        header: { backgroundColor: BRAND.dark },
+        body: { backgroundColor: BRAND.white },
+        footer: { backgroundColor: "#F8FAFB" },
+      },
+      header: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "16px",
+        contents: [
+          { type: "text", text: "หมอแมค MorMac", color: BRAND.mint, size: "xs" },
+          { type: "text", text: "อัปเดตสถานะซ่อม", color: BRAND.white, size: "lg", weight: "bold", margin: "xs" },
+          { type: "text", text: repair.repairCode, color: BRAND.accent, size: "xl", weight: "bold", margin: "sm" },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        paddingAll: "20px",
+        contents: [
+          { type: "text", text: statusText, size: "lg", weight: "bold", color: statusColor, wrap: true },
+          { type: "separator", color: "#EEEEEE" },
+          flexRow("อุปกรณ์", repair.deviceModel),
+          flexRow("อาการ", repair.symptoms || "-"),
+          ...(repair.quotedPrice ? [flexRow("ราคาประเมิน", priceText(repair.quotedPrice))] : []),
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: BRAND.dark,
+            height: "sm",
+            action: { type: "uri", label: "ดูรายละเอียด", uri: trackUrl },
+          },
+        ],
+      },
+    },
+  };
+}
+
+function buildQuoteConfirmFlex(repair: {
+  repairCode: string;
+  deviceModel: string;
+  symptoms: string;
+  quotedPrice?: number | null;
+}) {
+  const trackUrl = buildTrackingUrl(repair.repairCode);
+
+  return {
+    type: "flex",
+    altText: `ประเมินราคาซ่อม ${repair.repairCode}`,
+    contents: {
+      type: "bubble",
+      styles: {
+        header: { backgroundColor: BRAND.dark },
+        body: { backgroundColor: BRAND.white },
+        footer: { backgroundColor: "#F8FAFB" },
+      },
+      header: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "20px",
+        contents: [
+          { type: "text", text: "หมอแมค MorMac", color: BRAND.mint, size: "xs" },
+          { type: "text", text: "ประเมินราคาซ่อม", color: BRAND.white, size: "lg", weight: "bold", margin: "xs" },
+          { type: "text", text: repair.repairCode, color: BRAND.accent, size: "xl", weight: "bold", margin: "sm" },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        paddingAll: "20px",
+        contents: [
+          flexRow("อุปกรณ์", repair.deviceModel),
+          flexRow("อาการ", repair.symptoms || "-"),
+          { type: "separator", color: "#EEEEEE" },
+          { type: "text", text: priceText(repair.quotedPrice), size: "3xl", weight: "bold", color: BRAND.dark, align: "center", margin: "lg" },
+          { type: "text", text: "กรุณายืนยันหรือยกเลิกงานซ่อม", size: "xs", color: "#888888", align: "center", wrap: true },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            contents: [
+              { type: "button", style: "primary", color: BRAND.accent, action: { type: "postback", label: "ยืนยัน", data: `action=confirm&code=${repair.repairCode}` } },
+              { type: "button", style: "secondary", action: { type: "postback", label: "ยกเลิก", data: `action=cancel&code=${repair.repairCode}` } },
+            ],
+          },
+          {
+            type: "button",
+            style: "primary",
+            color: BRAND.dark,
+            height: "sm",
+            action: { type: "uri", label: "ดูรายละเอียด", uri: trackUrl },
+          },
+        ],
+      },
+    },
+  };
 }
 
 async function nextRepairCode() {
@@ -337,6 +522,28 @@ async function linePush(userId: string, text: string) {
     headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ to: userId, messages: [{ type: "text", text }] }),
   });
+}
+
+async function linePushFlex(userId: string, message: Record<string, unknown>) {
+  const res = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ to: userId, messages: [message] }),
+  });
+  if (!res.ok) throw new Error(`LINE push failed: ${res.status} ${await res.text()}`);
+}
+
+async function pushRepairStatusNotification(userId: string, repair: {
+  repairCode: string;
+  status: string;
+  deviceModel: string;
+  symptoms: string;
+  quotedPrice?: number | null;
+}) {
+  const message = repair.status === "quoted"
+    ? buildQuoteConfirmFlex(repair)
+    : buildRepairStatusFlex(repair);
+  await linePushFlex(userId, message);
 }
 
 app.post("/ai/parse", async (c) => {
