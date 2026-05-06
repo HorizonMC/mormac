@@ -56,7 +56,7 @@ export default async function RepairDetailPage({ params }: Props) {
   const laborCost = repair.laborCost || 0;
   const totalCost = partsCost + laborCost;
   const profit = repair.finalPrice ? repair.finalPrice - totalCost : repair.quotedPrice ? repair.quotedPrice - totalCost : null;
-  const photos = parsePhotoPaths(repair.photos);
+  const intakePhotos = parsePhotoPaths(repair.photos);
   const uploadBaseUrl = process.env.DB_API_URL || "http://localhost:4100";
 
   return (
@@ -101,7 +101,20 @@ export default async function RepairDetailPage({ params }: Props) {
         <StatusUpdateForm repairId={repair.id} currentStatus={repair.status} />
       </div>
 
-      <RepairPhotos repairId={repair.id} initialPhotos={photos} uploadBaseUrl={uploadBaseUrl} />
+      {intakePhotos.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+          <p className="font-bold text-sm mb-3">📸 รูปจากลูกค้า (ก่อนส่งเครื่อง)</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {intakePhotos.map((photo) => (
+              <a key={photo} href={`${uploadBaseUrl}${photo}`} target="_blank" className="block aspect-square rounded-lg overflow-hidden border border-gray-100 bg-gray-50">
+                <img src={`${uploadBaseUrl}${photo}`} alt="Intake" className="w-full h-full object-cover" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <RepairPhotos repairId={repair.id} initialPhotos={[]} uploadBaseUrl={uploadBaseUrl} />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
         <p className="font-bold text-sm mb-3">ประวัติ</p>

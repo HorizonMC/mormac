@@ -59,7 +59,7 @@ export function RepairPhotos({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
       <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="font-bold text-sm">รูปภาพเครื่อง</p>
+        <p className="font-bold text-sm">🔧 รูปจากร้าน (ระหว่างซ่อม)</p>
         <label className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 cursor-pointer">
           เลือกรูป
           <input
