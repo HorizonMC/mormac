@@ -36,11 +36,27 @@ async function createRepair(userId: string, deviceModel: string, deviceType: str
 }
 
 async function handleEvent(event: any) {
+  const userId: string | undefined = event.source?.userId;
+  if (!userId) return;
+
+  // Image message — forward to DB server for photo intake
+  if (event.type === "message" && event.message.type === "image") {
+    const dbUrl = process.env.DB_API_URL || "http://localhost:4100";
+    const dbKey = process.env.DB_API_KEY || "";
+    try {
+      await fetch(`${dbUrl}/ai/handle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": dbKey },
+        body: JSON.stringify({ message: "__IMAGE__", userId, imageMessageId: event.message.id }),
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch { /* fire and forget */ }
+    return;
+  }
+
   if (event.type === "message" && event.message.type === "text") {
     const text = event.message.text.trim();
-    const userId: string | undefined = event.source?.userId;
     const replyToken: string = event.replyToken;
-    if (!userId) return;
 
     // 1. Track by repair code
     if (/^MOR-\d{4}-\d{4}$/i.test(text)) {

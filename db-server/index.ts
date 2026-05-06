@@ -275,8 +275,26 @@ type RepairDraftMeta = {
   fullName?: string;
   phone?: string;
   returnAddress?: string;
-  step?: "name" | "phone" | "address" | "specs";
+  intakePhotos?: string[];
+  step?: "name" | "phone" | "address" | "specs" | "photos";
 };
+
+async function downloadLineImage(messageId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+      headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+    });
+    if (!res.ok) return null;
+    const buffer = await res.arrayBuffer();
+    const uploadsDir = path.resolve(import.meta.dir, "../public/uploads");
+    await Bun.write(path.join(uploadsDir, ".keep"), "");
+    const filename = `intake_${messageId}_${Date.now()}.jpg`;
+    await Bun.write(path.join(uploadsDir, filename), buffer);
+    return `/uploads/${filename}`;
+  } catch {
+    return null;
+  }
+}
 
 function parseJsonObject<T>(value: string | null | undefined): T | null {
   if (!value) return null;
@@ -641,7 +659,7 @@ app.post("/ai/parse", async (c) => {
 
 // Async AI handler — Vercel fires and forgets, DB server does AI + LINE reply
 app.post("/ai/handle", async (c) => {
-  const { message, userId } = await c.req.json();
+  const { message, userId, imageMessageId } = await c.req.json();
   if (!message || !userId) return c.json({ error: "Missing fields" }, 400);
 
   // Return 200 immediately, process in background
@@ -711,10 +729,45 @@ app.post("/ai/handle", async (c) => {
             await linePush(userId, macSpecsHelpText());
             return;
           }
+          draft.step = "photos";
+          draft.intakePhotos = [];
+          await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+          await linePush(userId, "📸 กรุณาถ่ายรูปเครื่องก่อนส่ง (สภาพภายนอก, จอ, ตัวเครื่อง)\nส่งรูปได้เลยค่ะ เสร็จแล้วพิมพ์ \"เสร็จ\"");
+          return;
         }
 
         if (step === "specs") {
           if (!wantsToSkipSpecs(message)) draft.specs = message.trim().slice(0, 160);
+          draft.step = "photos";
+          draft.intakePhotos = [];
+          await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+          await linePush(userId, "📸 กรุณาถ่ายรูปเครื่องก่อนส่ง (สภาพภายนอก, จอ, ตัวเครื่อง)\nส่งรูปได้เลยค่ะ เสร็จแล้วพิมพ์ \"เสร็จ\"");
+          return;
+        }
+
+        if (step === "photos") {
+          if (imageMessageId) {
+            const photoPath = await downloadLineImage(imageMessageId);
+            if (photoPath) {
+              draft.intakePhotos = draft.intakePhotos || [];
+              draft.intakePhotos.push(photoPath);
+              await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+              await linePush(userId, `✅ ได้รับรูปที่ ${draft.intakePhotos.length} แล้วค่ะ\nส่งเพิ่มได้อีก หรือพิมพ์ "เสร็จ" เพื่อยืนยันแจ้งซ่อม`);
+              return;
+            }
+          }
+          if (/^(เสร็จ|ส่งแล้ว|จบ|done|ยืนยัน|ok)$/i.test(message.trim())) {
+            if (!draft.intakePhotos?.length) {
+              await linePush(userId, "กรุณาส่งรูปเครื่องอย่างน้อย 1 รูปก่อนค่ะ 📸\nถ่ายสภาพเครื่องแล้วส่งมาเลย");
+              return;
+            }
+            // Fall through to finalize
+          } else if (message !== "__IMAGE__") {
+            await linePush(userId, "📸 ส่งรูปเครื่องเพิ่มได้เลยค่ะ หรือพิมพ์ \"เสร็จ\" เพื่อยืนยันแจ้งซ่อม");
+            return;
+          } else {
+            return;
+          }
         }
 
         const repairCode = await nextRepairCode();
@@ -730,7 +783,8 @@ app.post("/ai/handle", async (c) => {
               deviceType: draft.deviceType,
               symptoms: draft.symptoms,
               status: "submitted",
-              photos: JSON.stringify({ ...draft, kind: "repairDraft", step: undefined }),
+              photos: draft.intakePhotos?.length ? JSON.stringify(draft.intakePhotos) : null,
+              qcPhotos: JSON.stringify({ ...draft, kind: "repairDraft", step: undefined, intakePhotos: undefined }),
               shippingMethod: "postal_return",
             },
           }),
