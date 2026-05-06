@@ -15,21 +15,30 @@ export default async function HomePage() {
         <p className="text-lg opacity-80">{brand.tagline}</p>
         {brand.phone && <p className="mt-4 text-sm opacity-60">โทร: {brand.phone}</p>}
 
-        <div className="flex gap-3 justify-center mt-8">
+        <div className="flex flex-col items-center gap-3 mt-8">
           <Link
             href="/track"
-            className="px-6 py-3 rounded-xl font-medium text-sm transition"
+            className="w-64 px-6 py-3 rounded-xl font-medium text-sm text-center transition"
             style={{ background: c.accent, color: c.dark }}
           >
             🔍 เช็คสถานะซ่อม
           </Link>
-          <Link
-            href="/admin"
-            className="px-6 py-3 rounded-xl font-medium text-sm border transition"
-            style={{ borderColor: `${c.mint}66`, color: c.mint }}
-          >
-            เข้าระบบ Admin
-          </Link>
+          <div className="flex gap-3">
+            <Link
+              href="/login"
+              className="px-6 py-3 rounded-xl font-medium text-sm border transition"
+              style={{ borderColor: `${c.mint}66`, color: c.mint }}
+            >
+              เจ้าของร้าน
+            </Link>
+            <Link
+              href="/tech-login"
+              className="px-6 py-3 rounded-xl font-medium text-sm border transition"
+              style={{ borderColor: `${c.accent}66`, color: c.accent }}
+            >
+              ช่างซ่อม
+            </Link>
+          </div>
         </div>
       </div>
 

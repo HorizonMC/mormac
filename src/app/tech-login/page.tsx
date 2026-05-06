@@ -33,6 +33,10 @@ export default async function TechLoginPage() {
             bg: brand.colors.bg,
           }}
         />
+
+        <p className="text-center text-sm" style={{ color: brand.colors.teal }}>
+          เป็นเจ้าของร้าน? <a href="/login" className="underline font-medium" style={{ color: brand.colors.accent }}>เข้าระบบ Admin</a>
+        </p>
       </div>
     </div>
   );

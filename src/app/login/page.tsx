@@ -13,6 +13,9 @@ export default async function LoginPage() {
           <p className="text-sm" style={{ color: brand.colors.teal }}>Admin Login</p>
         </div>
         <LoginForm brandDark={brand.colors.dark} />
+        <p className="text-center mt-6 text-sm" style={{ color: brand.colors.teal }}>
+          เป็นช่างซ่อม? <a href="/tech-login" className="underline font-medium" style={{ color: brand.colors.accent }}>เข้าระบบช่าง</a>
+        </p>
       </div>
     </div>
   );
