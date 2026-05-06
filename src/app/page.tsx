@@ -29,14 +29,9 @@ export default async function HomePage() {
           <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black" style={{ background: c.accent, color: c.dark }}>D</div>
           <span className="text-white font-bold text-lg">{brand.name}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/login" className="px-4 py-2 rounded-lg text-xs font-medium transition hover:opacity-80" style={{ color: c.mint }}>
-            เจ้าของร้าน
-          </Link>
-          <Link href="/tech-login" className="px-4 py-2 rounded-lg text-xs font-medium transition hover:opacity-80" style={{ background: `${c.accent}18`, color: c.accent }}>
-            ช่างซ่อม
-          </Link>
-        </div>
+        <Link href="/login" className="px-5 py-2 rounded-lg text-xs font-bold transition hover:opacity-80" style={{ background: `${c.accent}18`, color: c.accent }}>
+          Login
+        </Link>
       </nav>
 
       {/* Hero */}
