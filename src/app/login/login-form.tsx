@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function LoginForm({ brandDark }: { brandDark: string }) {
-  const [pin, setPin] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
 
@@ -15,30 +16,42 @@ export function LoginForm({ brandDark }: { brandDark: string }) {
     const res = await fetch("/api/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin }),
+      body: JSON.stringify({ username, password }),
     });
 
     if (res.ok) {
       router.push("/admin");
     } else {
-      setError("รหัสผ่านไม่ถูกต้อง");
-      setPin("");
+      setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
+      setPassword("");
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
       <div>
-        <label className="text-xs text-gray-500 block mb-1">รหัส PIN</label>
+        <label className="text-xs text-gray-500 block mb-1">ชื่อผู้ใช้</label>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="username"
+          required
+          autoComplete="username"
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm"
+          autoFocus
+        />
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 block mb-1">รหัสผ่าน</label>
         <input
           type="password"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          placeholder="กรอก PIN 4-6 หลัก"
-          maxLength={6}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="password"
           required
-          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-2xl tracking-widest font-mono"
-          autoFocus
+          autoComplete="current-password"
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm"
         />
       </div>
       {error && <p className="text-red-500 text-sm text-center">{error}</p>}
