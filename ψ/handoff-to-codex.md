@@ -10,7 +10,7 @@
 5. **Rich Menu v2** — gradient + vector icons + NotoSansThai font, 3 ปุ่ม (แจ้งซ่อม/เช็คสถานะ/ค้นหา)
 6. **LINE Bot Flex Messages** — ทุก response เป็น branded Flex (status card, repair list, submit success, etc.)
 7. **ใบรับซ่อม (Job Sheet)** — `/api/repairs/jobsheet?code=MOR-XXXX` A4 พิมพ์ได้ 2 ตอน (ร้าน+ลูกค้า)
-8. **ADMIN_PIN** — เปลี่ยนจาก 1234 → 533153
+8. **ADMIN_PIN** — เปลี่ยนจาก 1234 → [REDACTED]
 9. **Customer Validation doc** — Mom Test approach, 20 ร้าน, conversation flow
 10. **AI-powered LINE bot** — Ollama gemma3:4b + system prompt (`ai/repair-assistant.md`)
 11. **Async AI architecture** — Vercel fire-and-forget → DB server runs LLM → LINE Push API
@@ -43,7 +43,7 @@
 - DB_API_KEY — `mormac-artron-2026`
 - LINE_CHANNEL_ACCESS_TOKEN — set
 - LINE_CHANNEL_SECRET — set (ค่าจริงคือ `22458e10b4b78bf1aa341a1e240f72d5`)
-- ADMIN_PIN — `533153`
+- ADMIN_PIN — `[REDACTED]`
 
 ### TODO ที่ยังไม่ได้ทำ
 - [ ] แก้ปัญหา AI ไม่ตอบ (ต้องเช็ค DB server log + tunnel + LINE token)

@@ -1,5 +1,5 @@
 const DB_URL = process.env.DB_API_URL || "http://localhost:4100";
-const DB_KEY = process.env.DB_API_KEY || "mormac-artron-2026";
+const DB_KEY = process.env.DB_API_KEY || "";
 
 export const isRemoteDB = !!process.env.DB_API_URL;
 

@@ -14,7 +14,7 @@ const API_KEY = process.env.DB_API_KEY || "mormac-secret-key-change-me";
 
 const app = new Hono();
 
-app.use("*", cors());
+app.use("*", cors({ origin: ["https://mormac.vercel.app", "http://localhost:3000", "http://localhost:3100", "http://localhost:3200"] }));
 
 app.use("*", async (c, next) => {
   if (c.req.path.startsWith("/uploads/")) {
@@ -125,7 +125,13 @@ app.get("/repairs/code/:code", async (c) => {
 
 app.post("/repairs", async (c) => {
   const body = await c.req.json();
-  const repair = await prisma.repair.create({ data: body });
+  const { repairCode, shopId, customerId, deviceModel, deviceType, symptoms, status } = body;
+  if (!repairCode || !shopId || !customerId || !deviceModel || !deviceType || !symptoms) {
+    return c.json({ error: "Missing required fields" }, 400);
+  }
+  const repair = await prisma.repair.create({
+    data: { repairCode, shopId, customerId, deviceModel, deviceType, symptoms, status: status || "submitted" },
+  });
   await prisma.repairEvent.create({ data: { repairId: repair.id, status: "submitted", actor: "system" } });
   return c.json(repair, 201);
 });

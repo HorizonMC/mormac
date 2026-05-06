@@ -103,14 +103,17 @@ async function handleEvent(event: any) {
     const params = new URLSearchParams(event.postback.data);
     const action = params.get("action");
     const code = params.get("code");
-    if (action === "confirm" && code) {
-      const repair = await db.repairs.getByCode(code);
-      if (repair) await db.repairs.updateStatus(repair.id, { status: "confirmed", actor: "customer" });
+    if (!action || !code) return;
+
+    const repair = await db.repairs.getByCode(code);
+    if (!repair || !repair.customer?.lineUserId || repair.customer.lineUserId !== userId) return;
+
+    if (action === "confirm") {
+      await db.repairs.updateStatus(repair.id, { status: "confirmed", actor: "customer" });
       await pushRepairUpdate(userId, code, "confirmed");
     }
-    if (action === "cancel" && code) {
-      const repair = await db.repairs.getByCode(code);
-      if (repair) await db.repairs.updateStatus(repair.id, { status: "cancelled", actor: "customer" });
+    if (action === "cancel") {
+      await db.repairs.updateStatus(repair.id, { status: "cancelled", actor: "customer" });
       await pushRepairUpdate(userId, code, "cancelled");
     }
   }
