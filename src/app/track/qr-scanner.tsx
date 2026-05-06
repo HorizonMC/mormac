@@ -6,31 +6,29 @@ import { useRouter } from "next/navigation";
 export function QrScanner({ dark, teal, accent }: { dark: string; teal: string; accent: string }) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [inLine, setInLine] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrRef = useRef<any>(null);
   const router = useRouter();
 
-  function isLineApp() {
-    return /Line\//i.test(navigator.userAgent);
-  }
+  useEffect(() => {
+    setInLine(/Line\//i.test(navigator.userAgent));
+    return () => { html5QrRef.current?.stop().catch(() => {}); };
+  }, []);
 
-  function openInExternalBrowser() {
-    const host = window.location.host;
-    const path = window.location.pathname + window.location.search;
-    const isAndroid = /android/i.test(navigator.userAgent);
-    if (isAndroid) {
-      window.location.href = `intent://${host}${path}#Intent;scheme=https;package=com.android.chrome;end`;
-    } else {
-      window.location.href = `x-safari-https://${host}${path}`;
+  async function copyLink() {
+    const url = window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      prompt("คัดลอกลิงก์นี้แล้วเปิดใน Chrome:", url);
     }
   }
 
   async function startScanner() {
-    if (isLineApp()) {
-      openInExternalBrowser();
-      return;
-    }
-
     setScanning(true);
     setError("");
     const { Html5Qrcode } = await import("html5-qrcode");
@@ -67,9 +65,23 @@ export function QrScanner({ dark, teal, accent }: { dark: string; teal: string; 
     setScanning(false);
   }
 
-  useEffect(() => {
-    return () => { html5QrRef.current?.stop().catch(() => {}); };
-  }, []);
+  if (inLine) {
+    return (
+      <div className="mt-4 space-y-3">
+        <div className="rounded-xl p-4 text-center text-sm" style={{ background: `${teal}15`, color: dark }}>
+          <p className="font-medium mb-1">กล้องใช้ไม่ได้ในแอป LINE</p>
+          <p className="text-xs" style={{ color: teal }}>กดคัดลอกลิงก์ แล้วเปิดใน Chrome เพื่อสแกน QR</p>
+        </div>
+        <button
+          onClick={copyLink}
+          className="w-full px-4 py-3 rounded-xl font-medium text-sm text-white transition"
+          style={{ background: copied ? accent : dark }}
+        >
+          {copied ? "✓ คัดลอกแล้ว — เปิดใน Chrome" : "คัดลอกลิงก์"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-4">
