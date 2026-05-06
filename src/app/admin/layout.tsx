@@ -1,25 +1,33 @@
 import Link from "next/link";
 import { getBrand } from "@/lib/brand";
+import { AdminMobileMenu } from "./admin-mobile-menu";
+
+const adminLinks = [
+  { href: "/admin/queue", label: "คิวงาน" },
+  { href: "/admin/devices", label: "เครื่อง" },
+  { href: "/admin/parts", label: "อะไหล่" },
+  { href: "/admin/customers", label: "ลูกค้า" },
+  { href: "/admin/overview", label: "ภาพรวม" },
+  { href: "/admin/reports", label: "รายงาน" },
+  { href: "/admin/settings", label: "ตั้งค่า" },
+];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const brand = await getBrand();
   const c = brand.colors;
   return (
     <div className="min-h-screen" style={{ background: c.bg }}>
-      <nav className="text-white px-4 py-3 flex items-center justify-between" style={{ background: c.dark }}>
+      <nav className="relative text-white px-4 py-3 flex items-center justify-between" style={{ background: c.dark }}>
         <div className="flex items-center gap-4">
           <Link href="/admin" className="font-bold text-lg">{brand.name}</Link>
           <span className="text-sm" style={{ color: c.mint }}>Admin</span>
         </div>
-        <div className="flex gap-4 text-sm">
-          <Link href="/admin/queue" className="hover:text-white" style={{ color: c.mint }}>คิวงาน</Link>
-          <Link href="/admin/devices" className="hover:text-white" style={{ color: c.mint }}>เครื่อง</Link>
-          <Link href="/admin/parts" className="hover:text-white" style={{ color: c.mint }}>อะไหล่</Link>
-          <Link href="/admin/customers" className="hover:text-white" style={{ color: c.mint }}>ลูกค้า</Link>
-          <Link href="/admin/overview" className="hover:text-white" style={{ color: c.mint }}>ภาพรวม</Link>
-          <Link href="/admin/reports" className="hover:text-white" style={{ color: c.mint }}>รายงาน</Link>
-          <Link href="/admin/settings" className="hover:text-white" style={{ color: c.mint }}>ตั้งค่า</Link>
+        <div className="hidden md:flex gap-4 text-sm">
+          {adminLinks.map((link) => (
+            <Link key={link.href} href={link.href} className="hover:text-white" style={{ color: c.mint }}>{link.label}</Link>
+          ))}
         </div>
+        <AdminMobileMenu links={adminLinks} dark={c.dark} mint={c.mint} />
       </nav>
       <main className="p-4 max-w-6xl mx-auto">{children}</main>
     </div>
