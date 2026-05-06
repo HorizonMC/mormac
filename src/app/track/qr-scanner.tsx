@@ -10,7 +10,18 @@ export function QrScanner({ dark, teal, accent }: { dark: string; teal: string; 
   const html5QrRef = useRef<any>(null);
   const router = useRouter();
 
+  function isLineApp() {
+    return /Line\//i.test(navigator.userAgent);
+  }
+
   async function startScanner() {
+    if (isLineApp()) {
+      const url = window.location.href.split("#")[0];
+      const sep = url.includes("?") ? "&" : "?";
+      window.location.href = url + sep + "openExternalBrowser=1";
+      return;
+    }
+
     setScanning(true);
     setError("");
     const { Html5Qrcode } = await import("html5-qrcode");
