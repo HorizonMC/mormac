@@ -3,6 +3,45 @@ import { repairStatusText } from "@/lib/line";
 
 export const dynamic = "force-dynamic";
 
+interface ReportSummary {
+  totalJobs: number;
+  completedJobs: number;
+  cancelledJobs: number;
+  activeJobs: number;
+  totalRevenue: number;
+  totalPartsCost: number;
+  totalLaborCost: number;
+  totalCost: number;
+  totalProfit: number;
+  avgTicket: number;
+  avgTurnaroundDays: number;
+  margin: number;
+}
+
+interface DeviceReport {
+  type: string;
+  count: number;
+  revenue: number;
+}
+
+interface StatusReport {
+  status: string;
+  count: number;
+}
+
+interface PartReport {
+  name: string;
+  totalQty: number;
+  totalCost: number;
+}
+
+interface TrendReport {
+  month: string;
+  jobs: number;
+  revenue: number;
+  cost: number;
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -10,36 +49,44 @@ export default async function ReportsPage({
 }) {
   const { period = "all" } = await searchParams;
   const [summary, byDevice, byStatus, topParts, trend] = await Promise.all([
-    db.reports.summary(period),
-    db.reports.byDevice(),
-    db.reports.byStatus(),
-    db.reports.topParts(),
-    db.reports.monthlyTrend(),
+    db.reports.summary(period) as Promise<ReportSummary>,
+    db.reports.byDevice() as Promise<DeviceReport[]>,
+    db.reports.byStatus() as Promise<StatusReport[]>,
+    db.reports.topParts() as Promise<PartReport[]>,
+    db.reports.monthlyTrend() as Promise<TrendReport[]>,
   ]);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-xl font-bold">รายงาน</h1>
-        <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1">
-          {[
-            { key: "week", label: "สัปดาห์" },
-            { key: "month", label: "เดือน" },
-            { key: "year", label: "ปี" },
-            { key: "all", label: "ทั้งหมด" },
-          ].map((p) => (
-            <a
-              key={p.key}
-              href={`/admin/reports?period=${p.key}`}
-              className={`px-3 py-1.5 text-xs rounded-md transition ${
-                period === p.key
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-500 hover:bg-gray-50"
-              }`}
-            >
-              {p.label}
-            </a>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1">
+            {[
+              { key: "week", label: "สัปดาห์" },
+              { key: "month", label: "เดือน" },
+              { key: "year", label: "ปี" },
+              { key: "all", label: "ทั้งหมด" },
+            ].map((p) => (
+              <a
+                key={p.key}
+                href={`/admin/reports?period=${p.key}`}
+                className={`px-3 py-1.5 text-xs rounded-md transition ${
+                  period === p.key
+                    ? "bg-gray-900 text-white"
+                    : "text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                {p.label}
+              </a>
+            ))}
+          </div>
+          <a
+            href={`/api/reports/csv?period=${period}`}
+            className="text-xs px-3 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-700 transition"
+          >
+            ดาวน์โหลด CSV
+          </a>
         </div>
       </div>
 
@@ -64,7 +111,7 @@ export default async function ReportsPage({
         {/* By Status */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="font-bold text-sm mb-3">ตามสถานะ</p>
-          {byStatus.map((s: any) => (
+          {byStatus.map((s) => (
             <div key={s.status} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50">
               <span>{repairStatusText(s.status)}</span>
               <div className="flex items-center gap-2">
@@ -83,7 +130,7 @@ export default async function ReportsPage({
         {/* By Device */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="font-bold text-sm mb-3">ตามประเภทอุปกรณ์</p>
-          {byDevice.map((d: any) => (
+          {byDevice.map((d) => (
             <div key={d.type} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50">
               <span className="capitalize">{deviceIcon(d.type)} {d.type}</span>
               <div className="text-right">
@@ -100,7 +147,7 @@ export default async function ReportsPage({
         {/* Top Parts */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="font-bold text-sm mb-3">อะไหล่ที่ใช้บ่อย</p>
-          {topParts.map((p: any, i: number) => (
+          {topParts.map((p, i) => (
             <div key={i} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50">
               <span>{p.name}</span>
               <div className="text-right">
@@ -127,7 +174,7 @@ export default async function ReportsPage({
                 </tr>
               </thead>
               <tbody>
-                {trend.map((t: any) => (
+                {trend.map((t) => (
                   <tr key={t.month} className="border-b border-gray-50">
                     <td className="py-1.5 font-mono text-xs">{t.month}</td>
                     <td className="py-1.5 text-right">{t.jobs}</td>
