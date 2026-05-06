@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { StatusUpdateForm } from "./status-form";
 import { PartsUsedForm } from "./parts-used-form";
 import { RepairPhotos } from "./repair-photos";
+import { AssignTechForm } from "./assign-tech-form";
 
 interface Props { params: Promise<{ id: string }>; }
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ interface RepairDetail {
   deviceModel: string;
   symptoms: string;
   status: string;
+  techId?: string | null;
   photos?: string | null;
   quotedPrice?: number | null;
   finalPrice?: number | null;
@@ -50,6 +52,7 @@ export default async function RepairDetailPage({ params }: Props) {
   const repair = (await db.repairs.get(id)) as RepairDetail | null;
   if (!repair) notFound();
 
+  const staffList = await db.staff.list();
   const availableParts = ((await db.parts.list()) as AvailablePart[]).filter((p) => p.quantity > 0);
   const usedParts = repair.partsUsed || [];
   const partsCost = usedParts.reduce((sum, p) => sum + p.cost, 0);
@@ -74,7 +77,15 @@ export default async function RepairDetailPage({ params }: Props) {
       <div className="grid grid-cols-2 gap-4 mb-6">
         <InfoCard label="สถานะ" value={repairStatusText(repair.status)} />
         <InfoCard label="ลูกค้า" value={`${repair.customer?.name || ""} ${repair.customer?.phone || ""}`} />
-        <InfoCard label="ช่าง" value={repair.tech?.user?.name || "ยังไม่ assign"} />
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+          <p className="text-xs text-gray-500 mb-1">ช่าง</p>
+          <p className="font-medium mb-2">{repair.tech?.user?.name || "ยังไม่ assign"}</p>
+          <AssignTechForm
+            repairId={repair.id}
+            currentTechId={repair.techId ?? null}
+            staffList={staffList.map((s) => ({ id: s.id, name: s.user?.name || s.username || "—" }))}
+          />
+        </div>
         <InfoCard label="ราคาประเมิน" value={repair.quotedPrice ? `฿${repair.quotedPrice.toLocaleString()}` : "—"} />
       </div>
 

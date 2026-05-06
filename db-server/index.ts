@@ -138,11 +138,12 @@ app.post("/repairs", async (c) => {
 
 app.patch("/repairs/:id/status", async (c) => {
   const id = c.req.param("id");
-  const { status, note, quotedPrice, laborCost, actor } = await c.req.json();
+  const { status, note, quotedPrice, laborCost, actor, techId } = await c.req.json();
   const updateData: Record<string, unknown> = {};
   if (status) updateData.status = status;
   if (quotedPrice !== undefined) updateData.quotedPrice = quotedPrice;
   if (laborCost !== undefined) updateData.laborCost = laborCost;
+  if (techId !== undefined) updateData.techId = techId;
   if (status === "done") updateData.completedAt = new Date();
   await prisma.repair.update({ where: { id }, data: updateData });
   if (status) await prisma.repairEvent.create({ data: { repairId: id, status, note, actor } });
@@ -160,10 +161,13 @@ app.patch("/repairs/:id/status", async (c) => {
 app.post("/repairs/:id/parts", async (c) => {
   const id = c.req.param("id");
   const { partId, quantity, cost } = await c.req.json();
+  const repair = await prisma.repair.findUnique({ where: { id }, select: { partsCost: true } });
+  if (!repair) return c.json({ error: "Not found" }, 404);
+  const newPartsCost = (repair.partsCost || 0) + cost;
   const [repairPart] = await prisma.$transaction([
     prisma.repairPart.create({ data: { repairId: id, partId, quantity, cost } }),
     prisma.part.update({ where: { id: partId }, data: { quantity: { decrement: quantity } } }),
-    prisma.repair.update({ where: { id }, data: { partsCost: { increment: cost } } }),
+    prisma.repair.update({ where: { id }, data: { partsCost: newPartsCost } }),
   ]);
   return c.json(repairPart, 201);
 });
@@ -245,6 +249,20 @@ app.put("/config", async (c) => {
     await prisma.config.upsert({ where: { key }, update: { value }, create: { key, value } });
   }
   return c.json({ ok: true });
+});
+
+// Recalculate partsCost from actual RepairPart records
+app.post("/repairs/recalc-costs", async (c) => {
+  const repairs = await prisma.repair.findMany({ include: { partsUsed: true } });
+  let fixed = 0;
+  for (const r of repairs) {
+    const calcCost = r.partsUsed.reduce((sum, p) => sum + p.cost, 0);
+    if (r.partsCost !== calcCost) {
+      await prisma.repair.update({ where: { id: r.id }, data: { partsCost: calcCost } });
+      fixed++;
+    }
+  }
+  return c.json({ ok: true, fixed, total: repairs.length });
 });
 
 // ===== Stats =====
@@ -973,6 +991,211 @@ app.get("/reports/monthly-trend", async (c) => {
     map.set(key, entry);
   }
   return c.json(Array.from(map.values()));
+});
+
+// ===== Reports: Job Profit Detail =====
+app.get("/reports/job-profit", async (c) => {
+  const period = c.req.query("period") || "month";
+  const techId = c.req.query("techId");
+  const now = new Date();
+  let dateFilter: Date | undefined;
+  if (period === "month") dateFilter = new Date(now.getFullYear(), now.getMonth(), 1);
+  else if (period === "week") { dateFilter = new Date(now); dateFilter.setDate(dateFilter.getDate() - 7); }
+  else if (period === "year") dateFilter = new Date(now.getFullYear(), 0, 1);
+
+  const where: Record<string, unknown> = { status: { in: ["done", "shipped", "returned"] } };
+  if (dateFilter) where.createdAt = { gte: dateFilter };
+  if (techId) where.techId = techId;
+
+  const repairs = await prisma.repair.findMany({
+    where,
+    include: { customer: true, tech: { include: { user: true } }, partsUsed: { include: { part: true } } },
+    orderBy: { completedAt: "desc" },
+  });
+
+  const jobs = repairs.map((r) => {
+    const revenue = r.finalPrice || r.quotedPrice || 0;
+    const parts = r.partsCost || 0;
+    const labor = r.laborCost || 0;
+    const cost = parts + labor;
+    const profit = revenue - cost;
+    return {
+      repairCode: r.repairCode,
+      deviceModel: r.deviceModel,
+      symptoms: r.symptoms,
+      customer: r.customer.name,
+      tech: r.tech?.user?.name || "-",
+      techId: r.techId,
+      revenue,
+      partsCost: parts,
+      laborCost: labor,
+      totalCost: cost,
+      profit,
+      margin: revenue > 0 ? Math.round((profit / revenue) * 100) : 0,
+      partsDetail: r.partsUsed.map((p) => ({ name: p.part.name, qty: p.quantity, cost: p.cost })),
+      createdAt: r.createdAt,
+      completedAt: r.completedAt,
+    };
+  });
+
+  const totalRevenue = jobs.reduce((s, j) => s + j.revenue, 0);
+  const totalCost = jobs.reduce((s, j) => s + j.totalCost, 0);
+  const totalProfit = totalRevenue - totalCost;
+
+  return c.json({
+    period,
+    jobCount: jobs.length,
+    totalRevenue,
+    totalCost,
+    totalProfit,
+    margin: totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 100) : 0,
+    jobs,
+  });
+});
+
+// ===== Reports: By Technician =====
+app.get("/reports/by-tech", async (c) => {
+  const period = c.req.query("period") || "month";
+  const now = new Date();
+  let dateFilter: Date | undefined;
+  if (period === "month") dateFilter = new Date(now.getFullYear(), now.getMonth(), 1);
+  else if (period === "week") { dateFilter = new Date(now); dateFilter.setDate(dateFilter.getDate() - 7); }
+  else if (period === "year") dateFilter = new Date(now.getFullYear(), 0, 1);
+
+  const where: Record<string, unknown> = { status: { in: ["done", "shipped", "returned"] }, techId: { not: null } };
+  if (dateFilter) where.createdAt = { gte: dateFilter };
+
+  const repairs = await prisma.repair.findMany({
+    where,
+    include: { tech: { include: { user: true } } },
+  });
+
+  const map = new Map<string, { techId: string; name: string; jobs: number; revenue: number; partsCost: number; laborCost: number }>();
+  for (const r of repairs) {
+    const tid = r.techId!;
+    const entry = map.get(tid) || { techId: tid, name: r.tech?.user?.name || "-", jobs: 0, revenue: 0, partsCost: 0, laborCost: 0 };
+    entry.jobs++;
+    entry.revenue += r.finalPrice || r.quotedPrice || 0;
+    entry.partsCost += r.partsCost || 0;
+    entry.laborCost += r.laborCost || 0;
+    map.set(tid, entry);
+  }
+
+  const techs = Array.from(map.values()).map((t) => ({
+    ...t,
+    totalCost: t.partsCost + t.laborCost,
+    profit: t.revenue - t.partsCost - t.laborCost,
+    margin: t.revenue > 0 ? Math.round(((t.revenue - t.partsCost - t.laborCost) / t.revenue) * 100) : 0,
+    avgPerJob: t.jobs > 0 ? Math.round(t.revenue / t.jobs) : 0,
+  })).sort((a, b) => b.profit - a.profit);
+
+  return c.json({ period, techs });
+});
+
+// ===== Staff CRUD =====
+app.get("/staff", async (c) => {
+  const staff = await prisma.staff.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } });
+  return c.json(staff);
+});
+
+app.post("/staff", async (c) => {
+  const { userId, shopId, role, username, password, perms } = await c.req.json();
+  if (!userId || !shopId || !role || !username || !password) {
+    return c.json({ error: "Missing required fields" }, 400);
+  }
+  const existing = await prisma.staff.findUnique({ where: { username } });
+  if (existing) return c.json({ error: "Username already taken" }, 409);
+  const staff = await prisma.staff.create({ data: { userId, shopId, role, username, password, perms: perms || "" } });
+  return c.json(staff, 201);
+});
+
+app.patch("/staff/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const data: Record<string, unknown> = {};
+  if (body.role !== undefined) data.role = body.role;
+  if (body.username !== undefined) data.username = body.username;
+  if (body.password !== undefined) data.password = body.password;
+  if (body.perms !== undefined) data.perms = body.perms;
+  if (body.shopId !== undefined) data.shopId = body.shopId;
+  if (body.userId !== undefined) data.userId = body.userId;
+  const staff = await prisma.staff.update({ where: { id }, data });
+  return c.json(staff);
+});
+
+app.delete("/staff/:id", async (c) => {
+  const id = c.req.param("id");
+  await prisma.staff.delete({ where: { id } });
+  return c.json({ ok: true });
+});
+
+// ===== Tech Auth =====
+app.post("/tech/auth", async (c) => {
+  const { username, password } = await c.req.json();
+  if (!username || !password) return c.json({ error: "Missing credentials" }, 400);
+  const staff = await prisma.staff.findUnique({ where: { username }, include: { user: true } });
+  if (!staff || staff.password !== password) return c.json({ error: "Invalid credentials" }, 401);
+  return c.json({ staffId: staff.id, name: staff.user.name, shopId: staff.shopId, role: staff.role, perms: staff.perms });
+});
+
+// ===== Tech-scoped Endpoints =====
+app.get("/tech/:staffId/repairs", async (c) => {
+  const staffId = c.req.param("staffId");
+  const repairs = await prisma.repair.findMany({
+    where: { techId: staffId },
+    include: { customer: true, timeline: { orderBy: { createdAt: "desc" }, take: 1 }, partsUsed: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return c.json(repairs);
+});
+
+app.get("/tech/:staffId/repairs/:repairId", async (c) => {
+  const { staffId, repairId } = c.req.param() as { staffId: string; repairId: string };
+  const repair = await prisma.repair.findUnique({
+    where: { id: repairId },
+    include: {
+      customer: true, shop: true,
+      tech: { include: { user: true } },
+      timeline: { orderBy: { createdAt: "desc" } },
+      partsUsed: { include: { part: true } },
+    },
+  });
+  if (!repair) return c.json({ error: "Not found" }, 404);
+  if (repair.techId !== staffId) return c.json({ error: "Not your repair" }, 403);
+  return c.json(repair);
+});
+
+app.patch("/tech/:staffId/repairs/:repairId/status", async (c) => {
+  const { staffId, repairId } = c.req.param() as { staffId: string; repairId: string };
+  const { status, note } = await c.req.json();
+  const allowed = ["diagnosing", "repairing", "qc", "done"];
+  if (!allowed.includes(status)) return c.json({ error: `Status must be one of: ${allowed.join(", ")}` }, 400);
+  const repair = await prisma.repair.findUnique({ where: { id: repairId }, select: { techId: true } });
+  if (!repair) return c.json({ error: "Not found" }, 404);
+  if (repair.techId !== staffId) return c.json({ error: "Not your repair" }, 403);
+  const updateData: Record<string, unknown> = { status };
+  if (status === "done") updateData.completedAt = new Date();
+  await prisma.repair.update({ where: { id: repairId }, data: updateData });
+  await prisma.repairEvent.create({ data: { repairId, status, note, actor: `tech:${staffId}` } });
+  const updated = await prisma.repair.findUnique({ where: { id: repairId }, include: { customer: true } });
+  return c.json(updated);
+});
+
+app.post("/tech/:staffId/repairs/:repairId/requisition", async (c) => {
+  const { staffId, repairId } = c.req.param() as { staffId: string; repairId: string };
+  const { partId, quantity, cost } = await c.req.json();
+  if (!partId || !quantity || cost === undefined) return c.json({ error: "Missing partId, quantity, or cost" }, 400);
+  const repair = await prisma.repair.findUnique({ where: { id: repairId }, select: { techId: true, partsCost: true } });
+  if (!repair) return c.json({ error: "Not found" }, 404);
+  if (repair.techId !== staffId) return c.json({ error: "Not your repair" }, 403);
+  const currentPartsCost = repair.partsCost || 0;
+  const newPartsCost = currentPartsCost + cost;
+  const [repairPart] = await prisma.$transaction([
+    prisma.repairPart.create({ data: { repairId, partId, quantity, cost } }),
+    prisma.part.update({ where: { id: partId }, data: { quantity: { decrement: quantity } } }),
+    prisma.repair.update({ where: { id: repairId }, data: { partsCost: newPartsCost } }),
+  ]);
+  return c.json(repairPart, 201);
 });
 
 // ===== Repair Code Generator =====

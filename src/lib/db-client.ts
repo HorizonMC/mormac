@@ -92,6 +92,17 @@ export interface DbPart {
   updatedAt: string | Date;
 }
 
+export interface DbStaff {
+  id: string;
+  userId: string;
+  shopId: string;
+  role: string;
+  username: string | null;
+  password: string | null;
+  perms: string;
+  user?: Pick<DbUser, "id" | "name" | "phone">;
+}
+
 export interface DbStats {
   totalRepairs: number;
   activeRepairs: number;
@@ -187,6 +198,19 @@ export const db = {
   config: {
     get: () => dbFetch<{ key: string; value: string }[]>("/config"),
     save: (entries: { key: string; value: string }[]) => dbFetch<{ ok: boolean }>("/config", { method: "PUT", body: JSON.stringify(entries) }),
+  },
+  staff: {
+    list: () => dbFetch<DbStaff[]>("/staff"),
+    create: (data: Partial<DbStaff>) => dbFetch<DbStaff>("/staff", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<DbStaff>) => dbFetch<DbStaff>(`/staff/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    delete: (id: string) => dbFetch<void>(`/staff/${id}`, { method: "DELETE" }),
+  },
+  tech: {
+    auth: (username: string, password: string) => dbFetch<{ staffId: string; name: string; shopId: string; role: string; perms: string }>("/tech/auth", { method: "POST", body: JSON.stringify({ username, password }) }),
+    repairs: (staffId: string) => dbFetch<DbRepair[]>(`/tech/${staffId}/repairs`),
+    repairDetail: (staffId: string, repairId: string) => dbFetch<DbRepair>(`/tech/${staffId}/repairs/${repairId}`),
+    updateStatus: (staffId: string, repairId: string, data: Record<string, unknown>) => dbFetch<DbRepair>(`/tech/${staffId}/repairs/${repairId}/status`, { method: "PATCH", body: JSON.stringify(data) }),
+    requisition: (staffId: string, repairId: string, data: { partId: string; quantity: number; cost: number }) => dbFetch<unknown>(`/tech/${staffId}/repairs/${repairId}/requisition`, { method: "POST", body: JSON.stringify(data) }),
   },
   stats: () => dbFetch<DbStats>("/stats"),
   ai: {

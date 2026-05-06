@@ -7,6 +7,7 @@ const adminLinks = [
   { href: "/admin/devices", label: "เครื่อง" },
   { href: "/admin/parts", label: "อะไหล่" },
   { href: "/admin/customers", label: "ลูกค้า" },
+  { href: "/admin/staff", label: "จัดการช่าง" },
   { href: "/admin/overview", label: "ภาพรวม" },
   { href: "/admin/reports", label: "รายงาน" },
   { href: "/admin/settings", label: "ตั้งค่า" },

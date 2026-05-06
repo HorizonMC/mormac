@@ -42,10 +42,13 @@ model User {
 }
 
 model Staff {
-  id     String @id @default(cuid())
-  userId String
-  shopId String
-  role   String @default("tech")
+  id       String  @id @default(cuid())
+  userId   String
+  shopId   String
+  role     String  @default("tech")
+  username String? @unique
+  password String?
+  perms    String  @default("repairs,parts_view")
 
   user    User     @relation(fields: [userId], references: [id])
   shop    Shop     @relation(fields: [shopId], references: [id])
