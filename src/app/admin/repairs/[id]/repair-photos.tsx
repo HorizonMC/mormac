@@ -57,10 +57,13 @@ export function RepairPhotos({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="font-bold text-sm">🔧 รูปจากร้าน (ระหว่างซ่อม)</p>
-        <label className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 cursor-pointer">
+    <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 mb-6" style={{ border: "1px solid #0F172008" }}>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <p className="font-bold" style={{ color: "#0F1720" }}>รูปจากร้าน (ระหว่างซ่อม)</p>
+        <label
+          className="text-xs px-4 py-2 rounded-xl font-bold cursor-pointer transition-all hover:opacity-80"
+          style={{ background: "#0F172006", color: "#0F1720" }}
+        >
           เลือกรูป
           <input
             type="file"
@@ -78,26 +81,29 @@ export function RepairPhotos({
               key={photo.path}
               href={photo.url}
               target="_blank"
-              className="block aspect-square rounded-lg overflow-hidden border border-gray-100 bg-gray-50"
+              className="block aspect-square rounded-xl overflow-hidden bg-gray-50 transition-all hover:opacity-80"
+              style={{ border: "1px solid #0F172008" }}
             >
               <img src={photo.url} alt="Repair device" className="w-full h-full object-cover" />
             </a>
           ))}
         </div>
       ) : (
-        <p className="text-sm text-gray-500 mb-4">ยังไม่มีรูปภาพ</p>
+        <p className="text-sm mb-4" style={{ color: "#4A7A8A" }}>ยังไม่มีรูปภาพ</p>
       )}
 
       {previewUrl && (
-        <div className="border-t border-gray-100 pt-4">
-          <p className="text-xs text-gray-500 mb-2">Preview ก่อนอัปโหลด</p>
-          <div className="flex gap-3 items-end">
-            <div className="w-28 h-28 rounded-lg overflow-hidden border border-gray-100 bg-gray-50 shrink-0">
+        <div className="pt-4" style={{ borderTop: "1px solid #0F172008" }}>
+          <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#4A7A8A" }}>
+            Preview ก่อนอัปโหลด
+          </p>
+          <div className="flex gap-4 items-end">
+            <div className="w-28 h-28 rounded-xl overflow-hidden bg-gray-50 shrink-0" style={{ border: "1px solid #0F172008" }}>
               <img src={previewUrl} alt="Selected repair device preview" className="w-full h-full object-cover" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{file?.name}</p>
-              <p className="text-xs text-gray-500 mb-3">
+              <p className="text-sm font-bold truncate" style={{ color: "#0F1720" }}>{file?.name}</p>
+              <p className="text-xs mb-3" style={{ color: "#4A7A8A" }}>
                 {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : ""}
               </p>
               <div className="flex gap-2">
@@ -105,7 +111,8 @@ export function RepairPhotos({
                   type="button"
                   onClick={onUpload}
                   disabled={uploading}
-                  className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition-all hover:opacity-90"
+                  style={{ background: "#0F1720" }}
                 >
                   {uploading ? "กำลังอัปโหลด..." : "อัปโหลด"}
                 </button>
@@ -113,7 +120,8 @@ export function RepairPhotos({
                   type="button"
                   onClick={() => setFile(null)}
                   disabled={uploading}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl text-sm disabled:opacity-50 transition-all"
+                  style={{ background: "#0F172006", color: "#4A7A8A" }}
                 >
                   ยกเลิก
                 </button>
@@ -123,7 +131,7 @@ export function RepairPhotos({
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+      {error && <p className="text-sm font-bold text-red-600 mt-3">{error}</p>}
     </div>
   );
 }

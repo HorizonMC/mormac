@@ -69,8 +69,8 @@ export function AddStaffForm({ shops }: { shops: Shop[] }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-        style={{ background: "#0F1720" }}
+        className="px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90"
+        style={{ background: "#28EF33", color: "#0F1720" }}
       >
         + เพิ่มช่าง
       </button>
@@ -78,36 +78,40 @@ export function AddStaffForm({ shops }: { shops: Shop[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-3">
-      <p className="font-bold text-sm">เพิ่มช่างใหม่</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white rounded-2xl shadow-sm p-6 space-y-4"
+      style={{ border: "1px solid #0F172008" }}
+    >
+      <p className="font-black text-sm" style={{ color: "#0F1720" }}>เพิ่มช่างใหม่</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="text-xs text-gray-500">ชื่อ *</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>ชื่อ *</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
         </div>
         <div>
-          <label className="text-xs text-gray-500">เบอร์โทร</label>
-          <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>เบอร์โทร</label>
+          <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
         </div>
         <div>
-          <label className="text-xs text-gray-500">Username *</label>
-          <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>Username *</label>
+          <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
         </div>
         <div>
-          <label className="text-xs text-gray-500">Password *</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>Password *</label>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
         </div>
         <div>
-          <label className="text-xs text-gray-500">ตำแหน่ง</label>
-          <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+          <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>ตำแหน่ง</label>
+          <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }}>
             <option value="tech">ช่าง</option>
             <option value="senior_tech">ช่างอาวุโส</option>
             <option value="admin">แอดมิน</option>
           </select>
         </div>
         <div>
-          <label className="text-xs text-gray-500">สาขา *</label>
-          <select value={shopId} onChange={(e) => setShopId(e.target.value)} required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+          <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>สาขา *</label>
+          <select value={shopId} onChange={(e) => setShopId(e.target.value)} required className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }}>
             {shops.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
@@ -116,16 +120,23 @@ export function AddStaffForm({ shops }: { shops: Shop[] }) {
       </div>
 
       <div>
-        <label className="text-xs text-gray-500 block mb-1">สิทธิ์การใช้งาน</label>
+        <label className="text-xs font-bold uppercase tracking-wider block mb-2" style={{ color: "#4A7A8A" }}>สิทธิ์การใช้งาน</label>
         <div className="flex flex-wrap gap-2">
           {PERM_OPTIONS.map((p) => (
-            <label key={p.key} className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <label
+              key={p.key}
+              className="flex items-center gap-2 text-sm cursor-pointer px-3 py-1.5 rounded-xl transition-all"
+              style={{
+                background: perms.includes(p.key) ? "#28EF3318" : "#0F172004",
+                color: perms.includes(p.key) ? "#0F1720" : "#4A7A8A",
+              }}
+            >
               <input
                 type="checkbox"
                 checked={perms.includes(p.key)}
                 onChange={() => togglePerm(p.key)}
                 className="rounded"
-                style={{ accentColor: "#4A9A8C" }}
+                style={{ accentColor: "#28EF33" }}
               />
               {p.label}
             </label>
@@ -133,11 +144,21 @@ export function AddStaffForm({ shops }: { shops: Shop[] }) {
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50" style={{ background: "#0F1720" }}>
+      <div className="flex gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-6 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition-all hover:opacity-90"
+          style={{ background: "#0F1720" }}
+        >
           {saving ? "กำลังบันทึก..." : "บันทึก"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="px-6 py-2.5 rounded-xl text-sm transition-all"
+          style={{ background: "#0F172006", color: "#4A7A8A" }}
+        >
           ยกเลิก
         </button>
       </div>
@@ -172,33 +193,54 @@ export function EditPermsForm({ staff }: { staff: StaffItem }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-xs px-2 py-1 rounded-md hover:bg-gray-100" style={{ color: "#4A9A8C" }}>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-xs px-3 py-1.5 rounded-xl font-bold transition-all"
+        style={{ color: "#4A7A8A", background: "#0F172004" }}
+      >
         แก้ไขสิทธิ์
       </button>
     );
   }
 
   return (
-    <div className="mt-2 p-3 bg-gray-50 rounded-lg space-y-2">
+    <div className="mt-3 p-4 rounded-xl space-y-3" style={{ background: "#f8fafb", border: "1px solid #0F172006" }}>
       <div className="flex flex-wrap gap-2">
         {PERM_OPTIONS.map((p) => (
-          <label key={p.key} className="flex items-center gap-1.5 text-xs cursor-pointer">
+          <label
+            key={p.key}
+            className="flex items-center gap-2 text-xs cursor-pointer px-3 py-1.5 rounded-xl transition-all"
+            style={{
+              background: perms.includes(p.key) ? "#28EF3318" : "white",
+              color: perms.includes(p.key) ? "#0F1720" : "#4A7A8A",
+              border: "1px solid #0F172008",
+            }}
+          >
             <input
               type="checkbox"
               checked={perms.includes(p.key)}
               onChange={() => togglePerm(p.key)}
               className="rounded"
-              style={{ accentColor: "#4A9A8C" }}
+              style={{ accentColor: "#28EF33" }}
             />
             {p.label}
           </label>
         ))}
       </div>
       <div className="flex gap-2">
-        <button onClick={handleSave} disabled={saving} className="px-3 py-1 rounded-md text-xs text-white disabled:opacity-50" style={{ background: "#0F1720" }}>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-4 py-1.5 rounded-xl text-xs font-bold text-white disabled:opacity-50 transition-all hover:opacity-90"
+          style={{ background: "#0F1720" }}
+        >
           {saving ? "..." : "บันทึก"}
         </button>
-        <button onClick={() => setOpen(false)} className="px-3 py-1 rounded-md text-xs bg-gray-200 hover:bg-gray-300">
+        <button
+          onClick={() => setOpen(false)}
+          className="px-4 py-1.5 rounded-xl text-xs transition-all"
+          style={{ background: "#0F172006", color: "#4A7A8A" }}
+        >
           ยกเลิก
         </button>
       </div>
@@ -229,10 +271,19 @@ export function DeleteStaffButton({ staffId }: { staffId: string }) {
   if (confirming) {
     return (
       <div className="flex gap-1">
-        <button onClick={handleDelete} disabled={deleting} className="text-xs px-2 py-1 rounded-md bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50">
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-xs px-3 py-1.5 rounded-xl font-bold disabled:opacity-50 transition-all"
+          style={{ background: "#FEF2F2", color: "#DC2626" }}
+        >
           {deleting ? "..." : "ยืนยันลบ"}
         </button>
-        <button onClick={() => setConfirming(false)} className="text-xs px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200">
+        <button
+          onClick={() => setConfirming(false)}
+          className="text-xs px-3 py-1.5 rounded-xl transition-all"
+          style={{ background: "#0F172006", color: "#4A7A8A" }}
+        >
           ไม่
         </button>
       </div>
@@ -240,7 +291,11 @@ export function DeleteStaffButton({ staffId }: { staffId: string }) {
   }
 
   return (
-    <button onClick={() => setConfirming(true)} className="text-xs px-2 py-1 rounded-md text-red-500 hover:bg-red-50">
+    <button
+      onClick={() => setConfirming(true)}
+      className="text-xs px-3 py-1.5 rounded-xl font-bold transition-all hover:bg-red-50"
+      style={{ color: "#DC2626" }}
+    >
       ลบ
     </button>
   );

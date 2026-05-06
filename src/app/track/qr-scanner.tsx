@@ -67,15 +67,15 @@ export function QrScanner({ dark, teal, accent }: { dark: string; teal: string; 
 
   if (inLine) {
     return (
-      <div className="mt-4 space-y-3">
-        <div className="rounded-xl p-4 text-center text-sm" style={{ background: `${teal}15`, color: dark }}>
+      <div className="space-y-3">
+        <div className="rounded-xl p-4 text-center text-sm" style={{ background: `${dark}`, color: "white" }}>
           <p className="font-medium mb-1">กล้องใช้ไม่ได้ในแอป LINE</p>
           <p className="text-xs" style={{ color: teal }}>กดคัดลอกลิงก์ แล้วเปิดใน Chrome เพื่อสแกน QR</p>
         </div>
         <button
           onClick={copyLink}
-          className="w-full px-4 py-3 rounded-xl font-medium text-sm text-white transition"
-          style={{ background: copied ? accent : dark }}
+          className="w-full px-4 py-3.5 rounded-xl font-bold text-sm transition hover:scale-[1.02] active:scale-[0.98]"
+          style={{ background: copied ? accent : dark, color: copied ? dark : "white" }}
         >
           {copied ? "✓ คัดลอกแล้ว — เปิดใน Chrome" : "คัดลอกลิงก์"}
         </button>
@@ -84,12 +84,12 @@ export function QrScanner({ dark, teal, accent }: { dark: string; teal: string; 
   }
 
   return (
-    <div className="mt-4">
+    <div>
       {!scanning ? (
         <button
           onClick={startScanner}
-          className="w-full px-4 py-3 rounded-xl font-medium text-sm border-2 border-dashed transition"
-          style={{ borderColor: teal, color: teal }}
+          className="w-full px-4 py-3.5 rounded-xl font-bold text-sm border-2 border-dashed transition hover:opacity-80"
+          style={{ borderColor: `${teal}44`, color: teal }}
         >
           📷 สแกน QR Code
         </button>
@@ -98,14 +98,14 @@ export function QrScanner({ dark, teal, accent }: { dark: string; teal: string; 
           <div id="qr-reader" ref={scannerRef} className="rounded-xl overflow-hidden mb-3" />
           <button
             onClick={stopScanner}
-            className="w-full px-4 py-2 rounded-xl text-sm"
-            style={{ background: `${teal}22`, color: dark }}
+            className="w-full px-4 py-3 rounded-xl text-sm font-medium transition hover:opacity-80"
+            style={{ background: dark, color: "white" }}
           >
             ปิดกล้อง
           </button>
         </div>
       )}
-      {error && <p className="text-red-500 text-xs mt-2 text-center">{error}</p>}
+      {error && <p className="text-red-400 text-xs mt-2 text-center">{error}</p>}
     </div>
   );
 }

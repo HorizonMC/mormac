@@ -1,4 +1,5 @@
 import { db } from "@/lib/db-client";
+import { getBrand } from "@/lib/brand";
 import { repairStatusText } from "@/lib/line";
 import { notFound } from "next/navigation";
 import { StatusUpdateForm } from "./status-form";
@@ -49,9 +50,13 @@ interface AvailablePart {
 
 export default async function RepairDetailPage({ params }: Props) {
   const { id } = await params;
-  const repair = (await db.repairs.get(id)) as RepairDetail | null;
+  const [repair, brand] = await Promise.all([
+    db.repairs.get(id) as Promise<RepairDetail | null>,
+    getBrand(),
+  ]);
   if (!repair) notFound();
 
+  const c = brand.colors;
   const staffList = await db.staff.list();
   const availableParts = ((await db.parts.list()) as AvailablePart[]).filter((p) => p.quantity > 0);
   const usedParts = repair.partsUsed || [];
@@ -63,86 +68,210 @@ export default async function RepairDetailPage({ params }: Props) {
   const uploadBaseUrl = process.env.DB_API_URL || "http://localhost:4100";
 
   return (
-    <div className="max-w-2xl">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold">{repair.repairCode}</h1>
-        <div className="flex gap-2">
-          <a href={`/api/repairs/jobsheet?code=${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-700">🖨️ ใบรับซ่อม</a>
-          <a href={`/api/repairs/cover?code=${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200">📋 ใบปะหน้า</a>
-          <a href={`/track/${repair.repairCode}`} target="_blank" className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200">🔗 Tracking</a>
-        </div>
-      </div>
-      <p className="text-gray-500 text-sm mb-6">{repair.deviceModel} — {repair.symptoms}</p>
+    <div style={{ background: c.bg }} className="min-h-screen -m-4 p-4 sm:-m-6 sm:p-6">
+      <div className="max-w-3xl">
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <InfoCard label="สถานะ" value={repairStatusText(repair.status)} />
-        <InfoCard label="ลูกค้า" value={`${repair.customer?.name || ""} ${repair.customer?.phone || ""}`} />
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
-          <p className="text-xs text-gray-500 mb-1">ช่าง</p>
-          <p className="font-medium mb-2">{repair.tech?.user?.name || "ยังไม่ assign"}</p>
-          <AssignTechForm
-            repairId={repair.id}
-            currentTechId={repair.techId ?? null}
-            staffList={staffList.map((s) => ({ id: s.id, name: s.user?.name || s.username || "—" }))}
-          />
-        </div>
-        <InfoCard label="ราคาประเมิน" value={repair.quotedPrice ? `฿${repair.quotedPrice.toLocaleString()}` : "—"} />
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-        <p className="font-bold text-sm mb-3">ต้นทุน / กำไร</p>
-        <div className="grid grid-cols-4 gap-3 text-center mb-4">
-          <div><p className="text-xs text-gray-500">อะไหล่</p><p className="font-bold">฿{partsCost.toLocaleString()}</p></div>
-          <div><p className="text-xs text-gray-500">ค่าแรง</p><p className="font-bold">฿{laborCost.toLocaleString()}</p></div>
-          <div><p className="text-xs text-gray-500">ต้นทุนรวม</p><p className="font-bold text-red-600">฿{totalCost.toLocaleString()}</p></div>
-          <div><p className="text-xs text-gray-500">กำไร</p><p className={`font-bold ${profit !== null && profit >= 0 ? "text-green-600" : "text-red-600"}`}>{profit !== null ? `${profit >= 0 ? "+" : ""}฿${profit.toLocaleString()}` : "—"}</p></div>
-        </div>
-        {usedParts.length > 0 && (
-          <div className="mb-3">{usedParts.map((pu) => (
-            <div key={pu.id} className="flex justify-between text-sm py-1 border-b border-gray-50">
-              <span>{pu.part?.name} x{pu.quantity}</span><span className="text-gray-500">฿{pu.cost.toLocaleString()}</span>
+        {/* Header Card */}
+        <div className="rounded-2xl overflow-hidden shadow-sm mb-6" style={{ border: `1px solid ${c.dark}08` }}>
+          <div className="p-5 sm:p-6" style={{ background: c.dark }}>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: c.mint }}>
+                  งานซ่อม
+                </p>
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  {repair.repairCode}
+                </h1>
+                <p className="text-sm mt-1" style={{ color: c.mint }}>
+                  {repair.deviceModel} — {repair.symptoms}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="px-4 py-2 rounded-xl text-sm font-black"
+                  style={{ background: c.accent, color: c.dark }}
+                >
+                  {repairStatusText(repair.status)}
+                </span>
+              </div>
             </div>
-          ))}</div>
-        )}
-        <PartsUsedForm repairId={repair.id} availableParts={availableParts.map((p) => ({ id: p.id, name: p.name, costPrice: p.costPrice, quantity: p.quantity }))} currentLaborCost={laborCost} />
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-        <p className="font-bold text-sm mb-3">อัพเดทสถานะ</p>
-        <StatusUpdateForm repairId={repair.id} currentStatus={repair.status} />
-      </div>
-
-      {intakePhotos.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-          <p className="font-bold text-sm mb-3">📸 รูปจากลูกค้า (ก่อนส่งเครื่อง)</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {intakePhotos.map((photo) => (
-              <a key={photo} href={`${uploadBaseUrl}${photo}`} target="_blank" className="block aspect-square rounded-lg overflow-hidden border border-gray-100 bg-gray-50">
-                <img src={`${uploadBaseUrl}${photo}`} alt="Intake" className="w-full h-full object-cover" />
-              </a>
-            ))}
+          </div>
+          {/* Action links */}
+          <div className="bg-white px-5 py-3 flex flex-wrap gap-2" style={{ borderTop: `1px solid ${c.dark}06` }}>
+            <a
+              href={`/api/repairs/jobsheet?code=${repair.repairCode}`}
+              target="_blank"
+              className="text-xs px-4 py-2 rounded-xl font-bold transition-all hover:opacity-90"
+              style={{ background: c.dark, color: "#fff" }}
+            >
+              ใบรับซ่อม
+            </a>
+            <a
+              href={`/api/repairs/cover?code=${repair.repairCode}`}
+              target="_blank"
+              className="text-xs px-4 py-2 rounded-xl font-bold transition-all"
+              style={{ background: `${c.dark}08`, color: c.dark }}
+            >
+              ใบปะหน้า
+            </a>
+            <a
+              href={`/track/${repair.repairCode}`}
+              target="_blank"
+              className="text-xs px-4 py-2 rounded-xl font-bold transition-all"
+              style={{ background: `${c.dark}08`, color: c.dark }}
+            >
+              Tracking
+            </a>
           </div>
         </div>
-      )}
 
-      <RepairPhotos repairId={repair.id} initialPhotos={[]} uploadBaseUrl={uploadBaseUrl} />
+        {/* Info Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <InfoCard label="ลูกค้า" dark={c.dark} teal={c.teal}>
+            <p className="font-bold" style={{ color: c.dark }}>{repair.customer?.name || "—"}</p>
+            <p className="text-sm" style={{ color: c.teal }}>{repair.customer?.phone || ""}</p>
+          </InfoCard>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-        <p className="font-bold text-sm mb-3">ประวัติ</p>
-        {repair.timeline?.map((e) => (
-          <div key={e.id} className="flex items-center gap-3 text-sm">
-            <span className="text-gray-400 w-32 shrink-0">{new Date(e.createdAt).toLocaleDateString("th-TH")} {new Date(e.createdAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
-            <span className="font-medium">{repairStatusText(e.status)}</span>
-            {e.note && <span className="text-gray-400">— {e.note}</span>}
+          <InfoCard label="ช่าง" dark={c.dark} teal={c.teal}>
+            <p className="font-bold mb-2" style={{ color: c.dark }}>
+              {repair.tech?.user?.name || "ยังไม่ assign"}
+            </p>
+            <AssignTechForm
+              repairId={repair.id}
+              currentTechId={repair.techId ?? null}
+              staffList={staffList.map((s) => ({ id: s.id, name: s.user?.name || s.username || "—" }))}
+            />
+          </InfoCard>
+
+          <InfoCard label="ราคาประเมิน" dark={c.dark} teal={c.teal}>
+            <p className="text-2xl font-black" style={{ color: c.dark }}>
+              {repair.quotedPrice ? `฿${repair.quotedPrice.toLocaleString()}` : "—"}
+            </p>
+          </InfoCard>
+        </div>
+
+        {/* Cost / Profit Card */}
+        <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 mb-6" style={{ border: `1px solid ${c.dark}08` }}>
+          <p className="font-bold mb-4" style={{ color: c.dark }}>ต้นทุน / กำไร</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+            <div className="text-center p-3 rounded-xl" style={{ background: `${c.dark}04` }}>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: c.teal }}>อะไหล่</p>
+              <p className="text-lg font-black" style={{ color: c.dark }}>฿{partsCost.toLocaleString()}</p>
+            </div>
+            <div className="text-center p-3 rounded-xl" style={{ background: `${c.dark}04` }}>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: c.teal }}>ค่าแรง</p>
+              <p className="text-lg font-black" style={{ color: c.dark }}>฿{laborCost.toLocaleString()}</p>
+            </div>
+            <div className="text-center p-3 rounded-xl" style={{ background: "#FEF2F2" }}>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#DC2626" }}>ต้นทุนรวม</p>
+              <p className="text-lg font-black text-red-600">฿{totalCost.toLocaleString()}</p>
+            </div>
+            <div className="text-center p-3 rounded-xl" style={{ background: profit !== null && profit >= 0 ? `${c.accent}10` : "#FEF2F2" }}>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: c.teal }}>กำไร</p>
+              <p className="text-lg font-black" style={{ color: profit !== null && profit >= 0 ? c.accent : "#EF4444" }}>
+                {profit !== null ? `${profit >= 0 ? "+" : ""}฿${profit.toLocaleString()}` : "—"}
+              </p>
+            </div>
           </div>
-        ))}
+
+          {usedParts.length > 0 && (
+            <div className="mb-4 rounded-xl overflow-hidden" style={{ border: `1px solid ${c.dark}06` }}>
+              {usedParts.map((pu) => (
+                <div key={pu.id} className="flex justify-between text-sm px-4 py-2.5" style={{ borderBottom: `1px solid ${c.dark}06` }}>
+                  <span style={{ color: c.dark }}>{pu.part?.name} x{pu.quantity}</span>
+                  <span style={{ color: c.teal }}>฿{pu.cost.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <PartsUsedForm repairId={repair.id} availableParts={availableParts.map((p) => ({ id: p.id, name: p.name, costPrice: p.costPrice, quantity: p.quantity }))} currentLaborCost={laborCost} />
+        </div>
+
+        {/* Status Update Card */}
+        <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 mb-6" style={{ border: `1px solid ${c.dark}08` }}>
+          <p className="font-bold mb-4" style={{ color: c.dark }}>อัพเดทสถานะ</p>
+          <StatusUpdateForm repairId={repair.id} currentStatus={repair.status} />
+        </div>
+
+        {/* Intake Photos */}
+        {intakePhotos.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 mb-6" style={{ border: `1px solid ${c.dark}08` }}>
+            <p className="font-bold mb-4" style={{ color: c.dark }}>รูปจากลูกค้า (ก่อนส่งเครื่อง)</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {intakePhotos.map((photo) => (
+                <a key={photo} href={`${uploadBaseUrl}${photo}`} target="_blank" className="block aspect-square rounded-xl overflow-hidden bg-gray-50" style={{ border: `1px solid ${c.dark}08` }}>
+                  <img src={`${uploadBaseUrl}${photo}`} alt="Intake" className="w-full h-full object-cover" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Repair Photos */}
+        <RepairPhotos repairId={repair.id} initialPhotos={[]} uploadBaseUrl={uploadBaseUrl} />
+
+        {/* Timeline */}
+        <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6" style={{ border: `1px solid ${c.dark}08` }}>
+          <p className="font-bold mb-5" style={{ color: c.dark }}>ประวัติ</p>
+          <div className="relative">
+            {repair.timeline && repair.timeline.length > 0 && (
+              <div
+                className="absolute left-[7px] top-2 bottom-2 w-0.5"
+                style={{ background: `${c.dark}12` }}
+              />
+            )}
+            <div className="space-y-4">
+              {repair.timeline?.map((e, i) => (
+                <div key={e.id} className="flex items-start gap-4 relative">
+                  {/* Dot */}
+                  <div
+                    className="w-4 h-4 rounded-full shrink-0 mt-0.5 z-10"
+                    style={{
+                      background: i === 0 ? c.accent : c.dark,
+                      border: `2px solid ${c.bg}`,
+                    }}
+                  />
+                  <div className="min-w-0 flex-1 pb-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                      <span className="font-bold text-sm" style={{ color: c.dark }}>
+                        {repairStatusText(e.status)}
+                      </span>
+                      <span className="text-xs" style={{ color: c.teal }}>
+                        {new Date(e.createdAt).toLocaleDateString("th-TH")} {new Date(e.createdAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    {e.note && (
+                      <p className="text-sm mt-0.5" style={{ color: c.mint }}>{e.note}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3"><p className="text-xs text-gray-500">{label}</p><p className="font-medium">{value}</p></div>);
+function InfoCard({
+  label,
+  dark,
+  teal,
+  children,
+}: {
+  label: string;
+  dark: string;
+  teal: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4" style={{ border: `1px solid ${dark}08` }}>
+      <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: teal }}>{label}</p>
+      {children}
+    </div>
+  );
 }
 
 function parsePhotoPaths(value: string | null | undefined) {

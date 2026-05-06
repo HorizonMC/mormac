@@ -50,24 +50,24 @@ export function TechLoginForm({ colors }: Props) {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div
         className="rounded-2xl p-6 space-y-4"
-        style={{ backgroundColor: colors.teal + "18" }}
+        style={{ background: `${colors.teal}18` }}
       >
         <div>
           <label
-            htmlFor="username"
+            htmlFor="tech-username"
             className="block text-sm font-medium mb-1.5"
             style={{ color: colors.mint }}
           >
             ชื่อผู้ใช้
           </label>
           <input
-            id="username"
+            id="tech-username"
             type="text"
             autoComplete="username"
             required
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full rounded-xl border-0 px-4 py-3 text-base text-white placeholder-gray-500 outline-none focus:ring-2"
+            className="w-full rounded-xl border-0 px-4 py-3.5 text-base text-white placeholder-gray-500 outline-none transition focus:ring-2"
             style={{
               backgroundColor: colors.dark,
               outlineColor: colors.accent,
@@ -78,20 +78,20 @@ export function TechLoginForm({ colors }: Props) {
 
         <div>
           <label
-            htmlFor="password"
+            htmlFor="tech-password"
             className="block text-sm font-medium mb-1.5"
             style={{ color: colors.mint }}
           >
             รหัสผ่าน
           </label>
           <input
-            id="password"
+            id="tech-password"
             type="password"
             autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl border-0 px-4 py-3 text-base text-white placeholder-gray-500 outline-none focus:ring-2"
+            className="w-full rounded-xl border-0 px-4 py-3.5 text-base text-white placeholder-gray-500 outline-none transition focus:ring-2"
             style={{
               backgroundColor: colors.dark,
               outlineColor: colors.accent,
@@ -108,7 +108,7 @@ export function TechLoginForm({ colors }: Props) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-xl py-3.5 text-base font-semibold transition-opacity disabled:opacity-50"
+        className="w-full rounded-xl py-3.5 text-base font-bold transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
         style={{
           backgroundColor: colors.accent,
           color: colors.dark,

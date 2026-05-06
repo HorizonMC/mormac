@@ -26,12 +26,12 @@ const STATUS_LABELS: Record<string, string> = {
   sold: "ขายแล้ว",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  incoming: "bg-gray-100 text-gray-600",
-  repairing: "bg-blue-50 text-blue-600",
-  ready: "bg-green-50 text-green-600",
-  listed: "bg-yellow-50 text-yellow-600",
-  sold: "bg-purple-50 text-purple-600",
+const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
+  incoming: { bg: "#0F172008", color: "#4A7A8A" },
+  repairing: { bg: "#3B82F618", color: "#3B82F6" },
+  ready: { bg: "#28EF3318", color: "#28EF33" },
+  listed: { bg: "#F59E0B18", color: "#F59E0B" },
+  sold: { bg: "#8B5CF618", color: "#8B5CF6" },
 };
 
 export function DeviceTable({ devices: initial, defaultShopId }: { devices: Device[]; defaultShopId: string }) {
@@ -74,19 +74,23 @@ export function DeviceTable({ devices: initial, defaultShopId }: { devices: Devi
 
   return (
     <div>
-      <button onClick={() => setShowAdd(!showAdd)} className="mb-4 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium">
+      <button
+        onClick={() => setShowAdd(!showAdd)}
+        className="mb-5 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90"
+        style={{ background: "#28EF33", color: "#0F1720" }}
+      >
         + รับซื้อเครื่องใหม่
       </button>
 
       {showAdd && (
-        <form action={addDevice} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <form action={addDevice} className="bg-white rounded-2xl shadow-sm p-5 mb-5 grid grid-cols-2 md:grid-cols-4 gap-4" style={{ border: "1px solid #0F172008" }}>
           <div className="col-span-2">
-            <label className="text-xs text-gray-500">รุ่น</label>
-            <input name="model" required placeholder="iPhone 15 Pro" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>รุ่น</label>
+            <input name="model" required placeholder="iPhone 15 Pro" className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
           </div>
           <div>
-            <label className="text-xs text-gray-500">ประเภท</label>
-            <select name="deviceType" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>ประเภท</label>
+            <select name="deviceType" className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }}>
               <option value="iphone">iPhone</option>
               <option value="macbook">MacBook</option>
               <option value="ipad">iPad</option>
@@ -95,81 +99,84 @@ export function DeviceTable({ devices: initial, defaultShopId }: { devices: Devi
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500">S/N</label>
-            <input name="serialNo" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>S/N</label>
+            <input name="serialNo" className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
           </div>
           <div>
-            <label className="text-xs text-gray-500">IMEI</label>
-            <input name="imei" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>IMEI</label>
+            <input name="imei" className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
           </div>
           <div>
-            <label className="text-xs text-gray-500">สภาพ/อาการ</label>
-            <input name="condition" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>สภาพ/อาการ</label>
+            <input name="condition" className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
           </div>
           <div>
-            <label className="text-xs text-gray-500">ราคาซื้อ</label>
-            <input name="buyPrice" type="number" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>ราคาซื้อ</label>
+            <input name="buyPrice" type="number" required className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
           </div>
           <div>
-            <label className="text-xs text-gray-500">ราคาขาย (ถ้ามี)</label>
-            <input name="sellPrice" type="number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>ราคาขาย (ถ้ามี)</label>
+            <input name="sellPrice" type="number" className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
           </div>
           <div>
-            <label className="text-xs text-gray-500">ชื่อคนขาย</label>
-            <input name="sellerId" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>ชื่อคนขาย</label>
+            <input name="sellerId" className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
           </div>
           <div>
-            <label className="text-xs text-gray-500">เลขบัตรคนขาย</label>
-            <input name="sellerIdCard" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: "#4A7A8A" }}>เลขบัตรคนขาย</label>
+            <input name="sellerIdCard" className="w-full rounded-xl px-4 py-2.5 text-sm" style={{ border: "1px solid #0F172012" }} />
           </div>
           <div className="flex items-end gap-2">
-            <button type="submit" className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm">บันทึก</button>
-            <button type="button" onClick={() => setShowAdd(false)} className="px-4 py-2 text-gray-500 text-sm">ยกเลิก</button>
+            <button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: "#0F1720" }}>บันทึก</button>
+            <button type="button" onClick={() => setShowAdd(false)} className="px-5 py-2.5 rounded-xl text-sm" style={{ color: "#4A7A8A" }}>ยกเลิก</button>
           </div>
         </form>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: "1px solid #0F172008" }}>
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-500 border-b border-gray-100">
-              <th className="p-3">รุ่น</th>
-              <th className="p-3">S/N</th>
-              <th className="p-3">สภาพ</th>
-              <th className="p-3 text-right">ซื้อ</th>
-              <th className="p-3 text-right">ขาย</th>
-              <th className="p-3 text-right">กำไร</th>
-              <th className="p-3">สถานะ</th>
-              <th className="p-3"></th>
+            <tr style={{ background: "#0F172004" }}>
+              <th className="p-4 text-left text-xs font-bold uppercase tracking-wider" style={{ color: "#4A7A8A" }}>รุ่น</th>
+              <th className="p-4 text-left text-xs font-bold uppercase tracking-wider" style={{ color: "#4A7A8A" }}>S/N</th>
+              <th className="p-4 text-left text-xs font-bold uppercase tracking-wider" style={{ color: "#4A7A8A" }}>สภาพ</th>
+              <th className="p-4 text-right text-xs font-bold uppercase tracking-wider" style={{ color: "#4A7A8A" }}>ซื้อ</th>
+              <th className="p-4 text-right text-xs font-bold uppercase tracking-wider" style={{ color: "#4A7A8A" }}>ขาย</th>
+              <th className="p-4 text-right text-xs font-bold uppercase tracking-wider" style={{ color: "#4A7A8A" }}>กำไร</th>
+              <th className="p-4 text-left text-xs font-bold uppercase tracking-wider" style={{ color: "#4A7A8A" }}>สถานะ</th>
+              <th className="p-4"></th>
             </tr>
           </thead>
           <tbody>
             {devices.map((d) => {
               const profit = d.sellPrice ? d.sellPrice - d.buyPrice - (d.repairCost || 0) : null;
+              const ss = STATUS_STYLES[d.status] || STATUS_STYLES.incoming;
               return (
-                <tr key={d.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="p-3 font-medium">{d.model}</td>
-                  <td className="p-3 font-mono text-xs text-gray-400">{d.serialNo || "—"}</td>
-                  <td className="p-3 text-gray-500 max-w-32 truncate">{d.condition || "—"}</td>
-                  <td className="p-3 text-right">฿{d.buyPrice.toLocaleString()}</td>
-                  <td className="p-3 text-right">{d.sellPrice ? `฿${d.sellPrice.toLocaleString()}` : "—"}</td>
-                  <td className="p-3 text-right">
+                <tr key={d.id} className="transition-colors hover:bg-gray-50" style={{ borderBottom: "1px solid #0F172006" }}>
+                  <td className="p-4 font-bold" style={{ color: "#0F1720" }}>{d.model}</td>
+                  <td className="p-4 font-mono text-xs" style={{ color: "#85C1B2" }}>{d.serialNo || "—"}</td>
+                  <td className="p-4 max-w-32 truncate" style={{ color: "#4A7A8A" }}>{d.condition || "—"}</td>
+                  <td className="p-4 text-right" style={{ color: "#0F1720" }}>฿{d.buyPrice.toLocaleString()}</td>
+                  <td className="p-4 text-right" style={{ color: "#0F1720" }}>{d.sellPrice ? `฿${d.sellPrice.toLocaleString()}` : "—"}</td>
+                  <td className="p-4 text-right">
                     {profit !== null ? (
-                      <span className={profit >= 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                      <span className="font-bold" style={{ color: profit >= 0 ? "#28EF33" : "#EF4444" }}>
                         {profit >= 0 ? "+" : ""}฿{profit.toLocaleString()}
                       </span>
-                    ) : "—"}
+                    ) : <span style={{ color: "#4A7A8A" }}>—</span>}
                   </td>
-                  <td className="p-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[d.status] || "bg-gray-100"}`}>
+                  <td className="p-4">
+                    <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: ss.bg, color: ss.color }}>
                       {STATUS_LABELS[d.status] || d.status}
                     </span>
                   </td>
-                  <td className="p-3">
+                  <td className="p-4">
                     <select
                       value={d.status}
                       onChange={(e) => updateStatus(d.id, e.target.value)}
-                      className="text-xs border border-gray-200 rounded px-1 py-0.5"
+                      className="text-xs rounded-lg px-2 py-1"
+                      style={{ border: "1px solid #0F172012", color: "#0F1720" }}
                     >
                       {Object.entries(STATUS_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
@@ -180,10 +187,65 @@ export function DeviceTable({ devices: initial, defaultShopId }: { devices: Devi
               );
             })}
             {devices.length === 0 && (
-              <tr><td colSpan={8} className="p-8 text-center text-gray-400">ยังไม่มีเครื่องในสต็อค</td></tr>
+              <tr><td colSpan={8} className="p-12 text-center" style={{ color: "#4A7A8A" }}>ยังไม่มีเครื่องในสต็อค</td></tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {devices.map((d) => {
+          const profit = d.sellPrice ? d.sellPrice - d.buyPrice - (d.repairCost || 0) : null;
+          const ss = STATUS_STYLES[d.status] || STATUS_STYLES.incoming;
+          return (
+            <div key={d.id} className="bg-white rounded-2xl shadow-sm p-4" style={{ border: "1px solid #0F172008" }}>
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="font-bold" style={{ color: "#0F1720" }}>{d.model}</p>
+                  {d.serialNo && <p className="font-mono text-xs mt-0.5" style={{ color: "#85C1B2" }}>{d.serialNo}</p>}
+                  {d.condition && <p className="text-xs mt-0.5" style={{ color: "#4A7A8A" }}>{d.condition}</p>}
+                </div>
+                <span className="text-xs px-2.5 py-1 rounded-full font-bold shrink-0" style={{ background: ss.bg, color: ss.color }}>
+                  {STATUS_LABELS[d.status] || d.status}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-3" style={{ borderTop: "1px solid #0F172006" }}>
+                <div>
+                  <p className="text-xs" style={{ color: "#4A7A8A" }}>ซื้อ</p>
+                  <p className="font-bold text-sm" style={{ color: "#0F1720" }}>฿{d.buyPrice.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "#4A7A8A" }}>ขาย</p>
+                  <p className="font-bold text-sm" style={{ color: "#0F1720" }}>{d.sellPrice ? `฿${d.sellPrice.toLocaleString()}` : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "#4A7A8A" }}>กำไร</p>
+                  <p className="font-bold text-sm" style={{ color: profit !== null ? (profit >= 0 ? "#28EF33" : "#EF4444") : "#4A7A8A" }}>
+                    {profit !== null ? `${profit >= 0 ? "+" : ""}฿${profit.toLocaleString()}` : "—"}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid #0F172006" }}>
+                <select
+                  value={d.status}
+                  onChange={(e) => updateStatus(d.id, e.target.value)}
+                  className="w-full text-xs rounded-xl px-3 py-2"
+                  style={{ border: "1px solid #0F172012", color: "#0F1720" }}
+                >
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          );
+        })}
+        {devices.length === 0 && (
+          <div className="bg-white rounded-2xl shadow-sm p-12 text-center" style={{ border: "1px solid #0F172008", color: "#4A7A8A" }}>
+            ยังไม่มีเครื่องในสต็อค
+          </div>
+        )}
       </div>
     </div>
   );

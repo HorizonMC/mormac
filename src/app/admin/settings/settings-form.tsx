@@ -35,104 +35,113 @@ export function SettingsForm({ initial }: { initial: BrandConfig }) {
     }
   }
 
+  const c = config.colors;
+
   return (
     <div className="space-y-6">
       {/* Brand Info */}
-      <Section title="ข้อมูลร้าน">
-        <Field label="ชื่อร้าน (EN)" value={config.name} onChange={(v) => set("name", v)} />
-        <Field label="ชื่อร้าน (TH)" value={config.nameTh} onChange={(v) => set("nameTh", v)} />
-        <Field label="Tagline" value={config.tagline} onChange={(v) => set("tagline", v)} />
-        <Field label="เบอร์โทร" value={config.phone} onChange={(v) => set("phone", v)} />
-        <Field label="ที่อยู่" value={config.address} onChange={(v) => set("address", v)} />
-        <Field label="Logo URL" value={config.logo} onChange={(v) => set("logo", v)} />
+      <Section title="ข้อมูลร้าน" dark={c.dark}>
+        <Field label="ชื่อร้าน (EN)" value={config.name} onChange={(v) => set("name", v)} dark={c.dark} teal={c.teal} />
+        <Field label="ชื่อร้าน (TH)" value={config.nameTh} onChange={(v) => set("nameTh", v)} dark={c.dark} teal={c.teal} />
+        <Field label="Tagline" value={config.tagline} onChange={(v) => set("tagline", v)} dark={c.dark} teal={c.teal} />
+        <Field label="เบอร์โทร" value={config.phone} onChange={(v) => set("phone", v)} dark={c.dark} teal={c.teal} />
+        <Field label="ที่อยู่" value={config.address} onChange={(v) => set("address", v)} dark={c.dark} teal={c.teal} />
+        <Field label="Logo URL" value={config.logo} onChange={(v) => set("logo", v)} dark={c.dark} teal={c.teal} />
       </Section>
 
       {/* Colors */}
-      <Section title="สีแบรนด์">
+      <Section title="สีแบรนด์" dark={c.dark}>
         <div className="grid grid-cols-2 gap-4">
-          <ColorField label="Dark (หลัก)" value={config.colors.dark} onChange={(v) => set("colors.dark", v)} />
-          <ColorField label="Teal (รอง)" value={config.colors.teal} onChange={(v) => set("colors.teal", v)} />
-          <ColorField label="Mint (อ่อน)" value={config.colors.mint} onChange={(v) => set("colors.mint", v)} />
-          <ColorField label="Accent (เน้น)" value={config.colors.accent} onChange={(v) => set("colors.accent", v)} />
-          <ColorField label="Background" value={config.colors.bg} onChange={(v) => set("colors.bg", v)} />
+          <ColorField label="Dark (หลัก)" value={c.dark} onChange={(v) => set("colors.dark", v)} teal={c.teal} dark={c.dark} />
+          <ColorField label="Teal (รอง)" value={c.teal} onChange={(v) => set("colors.teal", v)} teal={c.teal} dark={c.dark} />
+          <ColorField label="Mint (อ่อน)" value={c.mint} onChange={(v) => set("colors.mint", v)} teal={c.teal} dark={c.dark} />
+          <ColorField label="Accent (เน้น)" value={c.accent} onChange={(v) => set("colors.accent", v)} teal={c.teal} dark={c.dark} />
+          <ColorField label="Background" value={c.bg} onChange={(v) => set("colors.bg", v)} teal={c.teal} dark={c.dark} />
         </div>
       </Section>
 
       {/* Preview */}
-      <Section title="Preview">
-        <div className="rounded-xl overflow-hidden">
-          <div className="p-4 text-white" style={{ background: config.colors.dark }}>
-            <p className="font-bold text-lg">{config.name}</p>
-            <p className="text-sm" style={{ color: config.colors.mint }}>{config.nameTh} — {config.tagline}</p>
+      <Section title="Preview" dark={c.dark}>
+        <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${c.dark}10` }}>
+          <div className="p-5" style={{ background: c.dark }}>
+            <p className="font-black text-lg text-white">{config.name}</p>
+            <p className="text-sm" style={{ color: c.mint }}>{config.nameTh} — {config.tagline}</p>
           </div>
-          <div className="p-4" style={{ background: config.colors.bg }}>
-            <div className="flex gap-2 mb-2">
-              <span className="text-xs px-3 py-1 rounded-full text-white" style={{ background: config.colors.teal }}>สถานะ</span>
-              <span className="text-xs px-3 py-1 rounded-full text-white" style={{ background: config.colors.accent }}>Active</span>
+          <div className="p-5" style={{ background: c.bg }}>
+            <div className="flex gap-2 mb-3">
+              <span className="text-xs px-3 py-1.5 rounded-full text-white font-bold" style={{ background: c.teal }}>สถานะ</span>
+              <span className="text-xs px-3 py-1.5 rounded-full font-bold" style={{ background: c.accent, color: c.dark }}>Active</span>
             </div>
-            <div className="bg-white rounded-lg p-3" style={{ borderColor: `${config.colors.mint}33`, borderWidth: 1 }}>
-              <p className="font-bold text-sm" style={{ color: config.colors.dark }}>MOR-2605-0001</p>
-              <p className="text-xs" style={{ color: config.colors.teal }}>iPhone 15 Pro — จอแตก</p>
+            <div className="bg-white rounded-xl p-4" style={{ border: `1px solid ${c.dark}08` }}>
+              <p className="font-black text-sm" style={{ color: c.dark }}>MOR-2605-0001</p>
+              <p className="text-xs" style={{ color: c.teal }}>iPhone 15 Pro — จอแตก</p>
             </div>
           </div>
         </div>
       </Section>
 
       {/* Save */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-2.5 rounded-lg text-white font-medium transition disabled:opacity-50"
-          style={{ background: config.colors.dark }}
+          className="px-8 py-3 rounded-xl font-bold transition-all hover:opacity-90 disabled:opacity-50"
+          style={{ background: c.accent, color: c.dark }}
         >
           {saving ? "กำลังบันทึก..." : "บันทึก"}
         </button>
-        {saved && <span className="text-sm text-green-600 font-medium">บันทึกแล้ว!</span>}
+        {saved && (
+          <span className="text-sm font-bold" style={{ color: c.accent }}>
+            บันทึกแล้ว!
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, dark, children }: { title: string; dark: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-      <p className="font-bold text-sm mb-4">{title}</p>
-      <div className="space-y-3">{children}</div>
+    <div className="bg-white rounded-2xl shadow-sm p-6" style={{ border: `1px solid ${dark}08` }}>
+      <p className="font-black text-sm mb-5" style={{ color: dark }}>{title}</p>
+      <div className="space-y-4">{children}</div>
     </div>
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Field({ label, value, onChange, dark, teal }: { label: string; value: string; onChange: (v: string) => void; dark: string; teal: string }) {
   return (
     <div>
-      <label className="text-xs text-gray-500 block mb-1">{label}</label>
+      <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: teal }}>{label}</label>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-200"
+        className="w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all"
+        style={{ border: `1px solid ${dark}12`, color: dark }}
       />
     </div>
   );
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ColorField({ label, value, onChange, teal, dark }: { label: string; value: string; onChange: (v: string) => void; teal: string; dark: string }) {
   return (
     <div>
-      <label className="text-xs text-gray-500 block mb-1">{label}</label>
+      <label className="text-xs font-bold uppercase tracking-wider block mb-1.5" style={{ color: teal }}>{label}</label>
       <div className="flex items-center gap-2">
         <input
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer"
+          className="w-11 h-11 rounded-xl cursor-pointer"
+          style={{ border: `1px solid ${dark}12` }}
         />
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-200"
+          className="flex-1 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 transition-all"
+          style={{ border: `1px solid ${dark}12`, color: dark }}
         />
       </div>
     </div>

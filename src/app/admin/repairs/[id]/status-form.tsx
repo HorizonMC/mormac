@@ -58,7 +58,7 @@ export function StatusUpdateForm({ repairId, currentStatus }: { repairId: string
   }
 
   if (nextStatuses.length === 0) {
-    return <p className="text-sm text-[#4A7A8A]">งานนี้เสร็จสิ้นแล้ว</p>;
+    return <p className="text-sm font-bold" style={{ color: "#4A7A8A" }}>งานนี้เสร็จสิ้นแล้ว</p>;
   }
 
   return (
@@ -69,7 +69,8 @@ export function StatusUpdateForm({ repairId, currentStatus }: { repairId: string
           placeholder="ราคาประเมิน (บาท)"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
-          className="w-full border border-[#85C1B2]/30 rounded-lg px-3 py-2 text-sm"
+          className="w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2"
+          style={{ border: "1px solid #0F172012" }}
         />
       )}
       <input
@@ -77,19 +78,21 @@ export function StatusUpdateForm({ repairId, currentStatus }: { repairId: string
         placeholder="หมายเหตุ (ไม่บังคับ)"
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        className="w-full border border-[#85C1B2]/30 rounded-lg px-3 py-2 text-sm"
+        className="w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2"
+        style={{ border: "1px solid #0F172012" }}
       />
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {nextStatuses.map((s) => (
           <button
             key={s}
             onClick={() => updateStatus(s)}
             disabled={loading}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            className="px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50 hover:opacity-90"
+            style={
               s === "cancelled"
-                ? "bg-red-50 text-red-700 hover:bg-red-100"
-                : "bg-[#0F1720] text-white hover:bg-[#1a2a3a]"
-            } disabled:opacity-50`}
+                ? { background: "#FEF2F2", color: "#DC2626" }
+                : { background: "#0F1720", color: "#fff" }
+            }
           >
             {loading ? "..." : STATUS_LABELS[s] || s}
           </button>
