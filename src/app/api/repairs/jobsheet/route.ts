@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const qrDataUrl = await generateTrackingQR(code);
   const c = brand.colors;
   const date = new Date(repair.createdAt).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
-  const customer = repair.customer || {};
+  const customer = repair.customer || { name: "", phone: null, lineUserId: null };
 
   const section = (title: string, copy: string) => `
   <div class="sheet">

@@ -26,19 +26,27 @@ export interface DbRepairEvent {
 export interface DbRepair {
   id: string;
   repairCode: string;
+  shopId: string;
   customerId: string;
+  techId: string | null;
   deviceModel: string;
   deviceType: string;
+  serialNo: string | null;
+  imei: string | null;
   symptoms: string;
+  diagnosis: string | null;
   status: string;
+  quotedPrice: number | null;
+  finalPrice: number | null;
+  partsCost: number | null;
+  laborCost: number | null;
+  photos: string | null;
+  qcPhotos: string | null;
+  shippingMethod: string | null;
+  trackingNo: string | null;
   createdAt: string | Date;
-  quotedPrice?: number | null;
-  finalPrice?: number | null;
-  partsCost?: number | null;
-  laborCost?: number | null;
-  photos?: string | null;
-  shippingMethod?: string | null;
-  trackingNo?: string | null;
+  updatedAt: string | Date;
+  completedAt: string | Date | null;
   customer?: DbUser | null;
   shop?: DbShop | null;
   tech?: { user?: Pick<DbUser, "name"> | null } | null;
@@ -51,11 +59,19 @@ export interface DbDevice {
   shopId: string;
   model: string;
   deviceType: string;
+  serialNo: string | null;
+  imei: string | null;
+  condition: string | null;
   buyPrice: number;
-  sellPrice?: number | null;
-  repairCost?: number | null;
+  sellPrice: number | null;
+  repairCost: number | null;
   status: string;
-  createdAt?: string | Date;
+  sellerId: string | null;
+  sellerIdCard: string | null;
+  photos: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  shop?: DbShop;
 }
 
 export interface DbShop {
@@ -65,9 +81,15 @@ export interface DbShop {
 
 export interface DbPart {
   id: string;
+  shopId: string;
   name: string;
+  sku: string | null;
+  category: string | null;
   quantity: number;
-  costPrice?: number;
+  costPrice: number;
+  alertAt: number;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 
 export interface DbStats {
