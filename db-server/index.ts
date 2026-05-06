@@ -3,8 +3,10 @@ import { cors } from "hono/cors";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { PrismaClient } from "../src/generated/prisma/client";
 import path from "path";
+import { mkdir } from "fs/promises";
 
 const dbPath = path.resolve(import.meta.dir, "../dev.db");
+const uploadsDir = path.resolve(import.meta.dir, "../public/uploads");
 const adapter = new PrismaLibSql({ url: `file:${dbPath}` });
 const prisma = new PrismaClient({ adapter });
 
@@ -15,6 +17,10 @@ const app = new Hono();
 app.use("*", cors());
 
 app.use("*", async (c, next) => {
+  if (c.req.path.startsWith("/uploads/")) {
+    await next();
+    return;
+  }
   const key = c.req.header("x-api-key");
   if (key !== API_KEY) {
     return c.json({ error: "Unauthorized" }, 401);
@@ -24,6 +30,23 @@ app.use("*", async (c, next) => {
 
 // Health
 app.get("/health", (c) => c.json({ ok: true, db: dbPath }));
+
+app.get("/uploads/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  if (filename !== path.basename(filename)) {
+    return c.json({ error: "Invalid filename" }, 400);
+  }
+
+  const file = Bun.file(path.join(uploadsDir, filename));
+  if (!(await file.exists())) {
+    return c.json({ error: "Not found" }, 404);
+  }
+
+  return c.body(await file.arrayBuffer(), 200, {
+    "Content-Type": file.type || "application/octet-stream",
+    "Cache-Control": "public, max-age=31536000, immutable",
+  });
+});
 
 // ===== Repairs =====
 app.get("/repairs", async (c) => {
@@ -50,6 +73,46 @@ app.get("/repairs/:id", async (c) => {
     },
   });
   return repair ? c.json(repair) : c.json({ error: "Not found" }, 404);
+});
+
+app.post("/repairs/:id/photos", async (c) => {
+  const id = c.req.param("id");
+  const repair = await prisma.repair.findUnique({ where: { id }, select: { id: true, photos: true } });
+  if (!repair) return c.json({ error: "Not found" }, 404);
+
+  const formData = await c.req.formData();
+  const upload = formData.get("photo") || formData.get("file") || formData.get("image");
+  if (!(upload instanceof File)) {
+    return c.json({ error: "Missing image file" }, 400);
+  }
+  if (!upload.type.startsWith("image/")) {
+    return c.json({ error: "File must be an image" }, 400);
+  }
+
+  const ext = imageExtension(upload);
+  const safeRepairId = id.replace(/[^a-zA-Z0-9_-]/g, "");
+  const filename = `${safeRepairId}_${Date.now()}${ext}`;
+  const publicPath = `/uploads/${filename}`;
+
+  await mkdir(uploadsDir, { recursive: true });
+  await Bun.write(path.join(uploadsDir, filename), upload);
+
+  const existingPhotos = parseJsonObject<unknown>(repair.photos);
+  const photos = Array.isArray(existingPhotos) ? existingPhotos.filter((item): item is string => typeof item === "string") : [];
+  photos.push(publicPath);
+
+  const updatedRepair = await prisma.repair.update({
+    where: { id },
+    data: { photos: JSON.stringify(photos) },
+    include: {
+      customer: true, shop: true,
+      tech: { include: { user: true } },
+      timeline: { orderBy: { createdAt: "desc" } },
+      partsUsed: { include: { part: true } },
+    },
+  });
+
+  return c.json({ ok: true, path: publicPath, photos, repair: updatedRepair }, 201);
 });
 
 app.get("/repairs/code/:code", async (c) => {
@@ -216,6 +279,20 @@ function parseJsonObject<T>(value: string | null | undefined): T | null {
   } catch {
     return null;
   }
+}
+
+function imageExtension(file: File) {
+  const byType: Record<string, string> = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/heic": ".heic",
+    "image/heif": ".heif",
+    "image/avif": ".avif",
+  };
+  const extFromName = path.extname(file.name).toLowerCase().replace(/[^a-z0-9.]/g, "");
+  return byType[file.type] || extFromName || ".jpg";
 }
 
 function extractThaiFullName(message: string): string | null {

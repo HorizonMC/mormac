@@ -3,20 +3,61 @@ import { repairStatusText } from "@/lib/line";
 import { notFound } from "next/navigation";
 import { StatusUpdateForm } from "./status-form";
 import { PartsUsedForm } from "./parts-used-form";
+import { RepairPhotos } from "./repair-photos";
 
 interface Props { params: Promise<{ id: string }>; }
 export const dynamic = "force-dynamic";
 
+interface RepairDetail {
+  id: string;
+  repairCode: string;
+  deviceModel: string;
+  symptoms: string;
+  status: string;
+  photos?: string | null;
+  quotedPrice?: number | null;
+  finalPrice?: number | null;
+  laborCost?: number | null;
+  customer?: { name?: string | null; phone?: string | null } | null;
+  tech?: { user?: { name?: string | null } | null } | null;
+  partsUsed?: RepairPartUsed[];
+  timeline?: RepairTimelineEvent[];
+}
+
+interface RepairPartUsed {
+  id: string;
+  quantity: number;
+  cost: number;
+  part?: { name?: string | null } | null;
+}
+
+interface RepairTimelineEvent {
+  id: string;
+  status: string;
+  note?: string | null;
+  createdAt: string | Date;
+}
+
+interface AvailablePart {
+  id: string;
+  name: string;
+  costPrice: number;
+  quantity: number;
+}
+
 export default async function RepairDetailPage({ params }: Props) {
   const { id } = await params;
-  const repair = await db.repairs.get(id);
+  const repair = (await db.repairs.get(id)) as RepairDetail | null;
   if (!repair) notFound();
 
-  const availableParts = (await db.parts.list()).filter((p: any) => p.quantity > 0);
-  const partsCost = repair.partsUsed?.reduce((sum: number, p: any) => sum + p.cost, 0) || 0;
+  const availableParts = ((await db.parts.list()) as AvailablePart[]).filter((p) => p.quantity > 0);
+  const usedParts = repair.partsUsed || [];
+  const partsCost = usedParts.reduce((sum, p) => sum + p.cost, 0);
   const laborCost = repair.laborCost || 0;
   const totalCost = partsCost + laborCost;
   const profit = repair.finalPrice ? repair.finalPrice - totalCost : repair.quotedPrice ? repair.quotedPrice - totalCost : null;
+  const photos = parsePhotoPaths(repair.photos);
+  const uploadBaseUrl = process.env.DB_API_URL || "http://localhost:4100";
 
   return (
     <div className="max-w-2xl">
@@ -45,14 +86,14 @@ export default async function RepairDetailPage({ params }: Props) {
           <div><p className="text-xs text-gray-500">ต้นทุนรวม</p><p className="font-bold text-red-600">฿{totalCost.toLocaleString()}</p></div>
           <div><p className="text-xs text-gray-500">กำไร</p><p className={`font-bold ${profit !== null && profit >= 0 ? "text-green-600" : "text-red-600"}`}>{profit !== null ? `${profit >= 0 ? "+" : ""}฿${profit.toLocaleString()}` : "—"}</p></div>
         </div>
-        {repair.partsUsed?.length > 0 && (
-          <div className="mb-3">{repair.partsUsed.map((pu: any) => (
+        {usedParts.length > 0 && (
+          <div className="mb-3">{usedParts.map((pu) => (
             <div key={pu.id} className="flex justify-between text-sm py-1 border-b border-gray-50">
               <span>{pu.part?.name} x{pu.quantity}</span><span className="text-gray-500">฿{pu.cost.toLocaleString()}</span>
             </div>
           ))}</div>
         )}
-        <PartsUsedForm repairId={repair.id} availableParts={availableParts.map((p: any) => ({ id: p.id, name: p.name, costPrice: p.costPrice, quantity: p.quantity }))} currentLaborCost={laborCost} />
+        <PartsUsedForm repairId={repair.id} availableParts={availableParts.map((p) => ({ id: p.id, name: p.name, costPrice: p.costPrice, quantity: p.quantity }))} currentLaborCost={laborCost} />
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
@@ -60,9 +101,11 @@ export default async function RepairDetailPage({ params }: Props) {
         <StatusUpdateForm repairId={repair.id} currentStatus={repair.status} />
       </div>
 
+      <RepairPhotos repairId={repair.id} initialPhotos={photos} uploadBaseUrl={uploadBaseUrl} />
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
         <p className="font-bold text-sm mb-3">ประวัติ</p>
-        {repair.timeline?.map((e: any) => (
+        {repair.timeline?.map((e) => (
           <div key={e.id} className="flex items-center gap-3 text-sm">
             <span className="text-gray-400 w-32 shrink-0">{new Date(e.createdAt).toLocaleDateString("th-TH")} {new Date(e.createdAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
             <span className="font-medium">{repairStatusText(e.status)}</span>
@@ -76,4 +119,14 @@ export default async function RepairDetailPage({ params }: Props) {
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3"><p className="text-xs text-gray-500">{label}</p><p className="font-medium">{value}</p></div>);
+}
+
+function parsePhotoPaths(value: string | null | undefined) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
 }
