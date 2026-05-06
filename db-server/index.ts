@@ -1094,7 +1094,7 @@ app.get("/reports/by-tech", async (c) => {
 
 // ===== Staff CRUD =====
 app.get("/staff", async (c) => {
-  const staff = await prisma.staff.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } });
+  const staff = await prisma.staff.findMany({ include: { user: true } });
   return c.json(staff);
 });
 
