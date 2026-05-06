@@ -194,6 +194,11 @@ type RepairDraftMeta = {
   deviceModel: string;
   deviceType: string;
   symptoms: string;
+  specs?: string;
+  fullName?: string;
+  phone?: string;
+  returnAddress?: string;
+  step?: "name" | "phone" | "address" | "specs";
 };
 
 function parseJsonObject<T>(value: string | null | undefined): T | null {
@@ -215,8 +220,96 @@ function extractThaiFullName(message: string): string | null {
   return name;
 }
 
+function extractPhone(message: string): string | null {
+  const digits = message.replace(/\D/g, "");
+  if (!/^0\d{8,9}$/.test(digits)) return null;
+  return digits;
+}
+
+function extractReturnAddress(message: string): string | null {
+  const address = message.trim().replace(/\s+/g, " ");
+  if (address.length < 15 || address.length > 500) return null;
+  if (!/(ถ\.|ถนน|ซ\.|ซอย|ม\.|หมู่|ตำบล|ต\.|แขวง|อำเภอ|อ\.|เขต|จังหวัด|จ\.|กรุงเทพ|กทม|ไปรษณีย์|\d{5})/i.test(address)) return null;
+  return address;
+}
+
+function wantsToSkipSpecs(message: string) {
+  return /^(ข้าม|ไม่ทราบ|ไม่รู้|ดูไม่เป็น|skip)$/i.test(message.trim());
+}
+
+function needsMacSpecs(draft: RepairDraftMeta) {
+  return ["macbook", "imac", "mac"].includes(draft.deviceType.toLowerCase()) && !draft.specs;
+}
+
+function macSpecsHelpText() {
+  return [
+    "ขอรายละเอียด RAM และพื้นที่เก็บข้อมูลของ Mac เพิ่มเติมค่ะ เช่น RAM 16GB / SSD 512GB",
+    "",
+    "วิธีดูจากเครื่อง Mac:",
+    "1. กดเมนู Apple  มุมซ้ายบน",
+    "2. เลือก About This Mac / เกี่ยวกับ Mac เครื่องนี้",
+    "3. ดู Memory หรือ RAM",
+    "4. กด More Info หรือ Storage เพื่อดู SSD/พื้นที่เก็บข้อมูล",
+    "",
+    "ถ้าดูไม่เป็น พิมพ์ว่า “ข้าม” ได้ค่ะ",
+  ].join("\n");
+}
+
 function buildShippingCoverUrl(repairCode: string) {
   return `https://mormac.vercel.app/api/repairs/cover?code=${encodeURIComponent(repairCode)}`;
+}
+
+async function nextRepairCode() {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const prefix = `MOR-${yy}${mm}`;
+  const last = await prisma.repair.findFirst({ where: { repairCode: { startsWith: prefix } }, orderBy: { repairCode: "desc" } });
+  let seq = 1;
+  if (last) seq = parseInt(last.repairCode.split("-")[2], 10) + 1;
+  return `${prefix}-${String(seq).padStart(4, "0")}`;
+}
+
+async function pushRepairCreated(userId: string, repairCode: string, fullName: string, draft: RepairDraftMeta) {
+  const trackUrl = `https://mormac.vercel.app/track/${repairCode}`;
+  await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: userId,
+      messages: [{
+        type: "flex", altText: `แจ้งซ่อมสำเร็จ ${repairCode}`,
+        contents: {
+          type: "bubble",
+          styles: { header: { backgroundColor: "#0F1720" } },
+          header: { type: "box", layout: "vertical", paddingAll: "20px", contents: [
+            { type: "text", text: "✅ แจ้งซ่อมสำเร็จ!", color: "#28EF33", size: "lg", weight: "bold" },
+            { type: "text", text: repairCode, color: "#FFFFFF", size: "xxl", weight: "bold", margin: "sm" },
+          ]},
+          body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "20px", contents: [
+            { type: "box", layout: "horizontal", contents: [
+              { type: "text", text: "ลูกค้า", size: "sm", color: "#888888", flex: 3 },
+              { type: "text", text: fullName, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
+            ]},
+            { type: "box", layout: "horizontal", contents: [
+              { type: "text", text: "อุปกรณ์", size: "sm", color: "#888888", flex: 3 },
+              { type: "text", text: draft.deviceModel, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
+            ]},
+            { type: "box", layout: "horizontal", contents: [
+              { type: "text", text: "อาการ", size: "sm", color: "#888888", flex: 3 },
+              { type: "text", text: draft.symptoms, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
+            ]},
+            { type: "separator", color: "#EEEEEE" },
+            { type: "text", text: "เปิดหน้าติดตามเพื่อพิมพ์ใบปะหน้าซองหรือกล่องส่งเครื่องได้ค่ะ", size: "xs", color: "#888888", margin: "md", wrap: true },
+          ]},
+          footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", contents: [
+            { type: "button", style: "primary", color: "#0F1720", height: "sm", action: { type: "uri", label: "🔗 ติดตามสถานะ", uri: trackUrl } },
+            { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "🧾 ใบปะหน้าส่งเครื่อง", uri: buildShippingCoverUrl(repairCode) } },
+          ]},
+        },
+      }],
+    }),
+  });
 }
 
 async function aiParse(message: string) {
@@ -266,18 +359,12 @@ app.post("/ai/handle", async (c) => {
     try {
       let customer = await prisma.user.findUnique({ where: { lineUserId: userId } });
       const pendingRepair = await prisma.repair.findFirst({
-        where: { customer: { lineUserId: userId }, status: "pending_customer_name" },
+        where: { customer: { lineUserId: userId }, status: { in: ["pending_customer_name", "pending_customer_info"] } },
         include: { customer: true },
         orderBy: { createdAt: "desc" },
       });
 
       if (pendingRepair) {
-        const fullName = extractThaiFullName(message);
-        if (!fullName) {
-          await linePush(userId, "ขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยค่ะ\nเช่น สมชาย ใจดี");
-          return;
-        }
-
         const draft = parseJsonObject<RepairDraftMeta>(pendingRepair.photos);
         if (!draft || draft.kind !== "repairDraft") {
           await prisma.repair.update({
@@ -288,70 +375,79 @@ app.post("/ai/handle", async (c) => {
           return;
         }
 
-        const now = new Date();
-        const yy = String(now.getFullYear()).slice(-2);
-        const mm = String(now.getMonth() + 1).padStart(2, "0");
-        const prefix = `MOR-${yy}${mm}`;
-        const last = await prisma.repair.findFirst({ where: { repairCode: { startsWith: prefix } }, orderBy: { repairCode: "desc" } });
-        let seq = 1;
-        if (last) seq = parseInt(last.repairCode.split("-")[2], 10) + 1;
-        const repairCode = `${prefix}-${String(seq).padStart(4, "0")}`;
+        const step = draft.step || "name";
+        if (step === "name") {
+          const fullName = extractThaiFullName(message);
+          if (!fullName) {
+            await linePush(userId, "ขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยค่ะ\nเช่น สมชาย ใจดี");
+            return;
+          }
+          draft.fullName = fullName;
+          draft.step = "phone";
+          await prisma.$transaction([
+            prisma.user.update({ where: { id: pendingRepair.customerId }, data: { name: fullName } }),
+            prisma.repair.update({ where: { id: pendingRepair.id }, data: { status: "pending_customer_info", photos: JSON.stringify(draft) } }),
+          ]);
+          await linePush(userId, "ขอเบอร์โทรสำหรับติดต่อและใส่ใบปะหน้าส่งกลับด้วยค่ะ\nเช่น 0812345678");
+          return;
+        }
 
+        if (step === "phone") {
+          const phone = extractPhone(message);
+          if (!phone) {
+            await linePush(userId, "เบอร์โทรไม่ถูกต้องค่ะ กรุณาส่งเป็นเบอร์มือถือ 9-10 หลัก เช่น 0812345678");
+            return;
+          }
+          draft.phone = phone;
+          draft.step = "address";
+          await prisma.$transaction([
+            prisma.user.update({ where: { id: pendingRepair.customerId }, data: { phone } }),
+            prisma.repair.update({ where: { id: pendingRepair.id }, data: { status: "pending_customer_info", photos: JSON.stringify(draft) } }),
+          ]);
+          await linePush(userId, "ขอที่อยู่สำหรับส่งเครื่องกลับทางไปรษณีย์ด้วยค่ะ\nกรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์");
+          return;
+        }
+
+        if (step === "address") {
+          const returnAddress = extractReturnAddress(message);
+          if (!returnAddress) {
+            await linePush(userId, "ที่อยู่ยังไม่ครบพอสำหรับจัดส่งค่ะ กรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์");
+            return;
+          }
+          draft.returnAddress = returnAddress;
+          if (needsMacSpecs(draft)) {
+            draft.step = "specs";
+            await prisma.repair.update({ where: { id: pendingRepair.id }, data: { status: "pending_customer_info", photos: JSON.stringify(draft) } });
+            await linePush(userId, macSpecsHelpText());
+            return;
+          }
+        }
+
+        if (step === "specs") {
+          if (!wantsToSkipSpecs(message)) draft.specs = message.trim().slice(0, 160);
+        }
+
+        const repairCode = await nextRepairCode();
+        const finalDeviceModel = draft.specs && !draft.deviceModel.includes(draft.specs)
+          ? `${draft.deviceModel} (${draft.specs})`
+          : draft.deviceModel;
         await prisma.$transaction([
-          prisma.user.update({ where: { id: pendingRepair.customerId }, data: { name: fullName } }),
           prisma.repair.update({
             where: { id: pendingRepair.id },
             data: {
               repairCode,
-              deviceModel: draft.deviceModel,
+              deviceModel: finalDeviceModel,
               deviceType: draft.deviceType,
               symptoms: draft.symptoms,
               status: "submitted",
-              photos: null,
+              photos: JSON.stringify({ ...draft, kind: "repairDraft", step: undefined }),
+              shippingMethod: "postal_return",
             },
           }),
-          prisma.repairEvent.create({ data: { repairId: pendingRepair.id, status: "submitted", actor: "system", note: "Customer name confirmed" } }),
+          prisma.repairEvent.create({ data: { repairId: pendingRepair.id, status: "submitted", actor: "system", note: "Customer intake completed" } }),
         ]);
 
-        const trackUrl = `https://mormac.vercel.app/track/${repairCode}`;
-        await fetch("https://api.line.me/v2/bot/message/push", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: userId,
-            messages: [{
-              type: "flex", altText: `แจ้งซ่อมสำเร็จ ${repairCode}`,
-              contents: {
-                type: "bubble",
-                styles: { header: { backgroundColor: "#0F1720" } },
-                header: { type: "box", layout: "vertical", paddingAll: "20px", contents: [
-                  { type: "text", text: "✅ แจ้งซ่อมสำเร็จ!", color: "#28EF33", size: "lg", weight: "bold" },
-                  { type: "text", text: repairCode, color: "#FFFFFF", size: "xxl", weight: "bold", margin: "sm" },
-                ]},
-                body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "20px", contents: [
-                  { type: "box", layout: "horizontal", contents: [
-                    { type: "text", text: "ลูกค้า", size: "sm", color: "#888888", flex: 3 },
-                    { type: "text", text: fullName, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
-                  ]},
-                  { type: "box", layout: "horizontal", contents: [
-                    { type: "text", text: "อุปกรณ์", size: "sm", color: "#888888", flex: 3 },
-                    { type: "text", text: draft.deviceModel, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
-                  ]},
-                  { type: "box", layout: "horizontal", contents: [
-                    { type: "text", text: "อาการ", size: "sm", color: "#888888", flex: 3 },
-                    { type: "text", text: draft.symptoms, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
-                  ]},
-                  { type: "separator", color: "#EEEEEE" },
-                  { type: "text", text: "เปิดหน้าติดตามเพื่อพิมพ์ใบปะหน้าซองหรือกล่องส่งเครื่องได้ค่ะ", size: "xs", color: "#888888", margin: "md", wrap: true },
-                ]},
-                footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", contents: [
-                  { type: "button", style: "primary", color: "#0F1720", height: "sm", action: { type: "uri", label: "🔗 ติดตามสถานะ", uri: trackUrl } },
-                  { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "🧾 ใบปะหน้าส่งเครื่อง", uri: buildShippingCoverUrl(repairCode) } },
-                ]},
-              },
-            }],
-          }),
-        });
+        await pushRepairCreated(userId, repairCode, draft.fullName || pendingRepair.customer.name, { ...draft, deviceModel: finalDeviceModel });
         return;
       }
 
@@ -384,75 +480,37 @@ app.post("/ai/handle", async (c) => {
         }
 
         if (!customer) customer = await prisma.user.create({ data: { lineUserId: userId, name: "LINE User", role: "customer" } });
-        if (customer.name === "LINE User" || !/\s/.test(customer.name.trim())) {
-          await prisma.repair.create({
-            data: {
-              repairCode: `TMP-${crypto.randomUUID()}`,
-              shopId: shops[0].id,
-              customerId: customer.id,
-              deviceModel,
-              deviceType: ai.type || "other",
-              symptoms: ai.symptoms,
-              status: "pending_customer_name",
-              photos: JSON.stringify({
-                kind: "repairDraft",
-                deviceModel,
-                deviceType: ai.type || "other",
-                symptoms: ai.symptoms,
-              } satisfies RepairDraftMeta),
-            },
-          });
-          await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยนะคะ\nเช่น สมชาย ใจดี");
-          return;
-        }
-
-        const now = new Date();
-        const yy = String(now.getFullYear()).slice(-2);
-        const mm = String(now.getMonth() + 1).padStart(2, "0");
-        const prefix = `MOR-${yy}${mm}`;
-        const last = await prisma.repair.findFirst({ where: { repairCode: { startsWith: prefix } }, orderBy: { repairCode: "desc" } });
-        let seq = 1;
-        if (last) seq = parseInt(last.repairCode.split("-")[2], 10) + 1;
-        const repairCode = `${prefix}-${String(seq).padStart(4, "0")}`;
-
-        await prisma.repair.create({ data: { repairCode, shopId: shops[0].id, customerId: customer.id, deviceModel, deviceType: ai.type || "other", symptoms: ai.symptoms, status: "submitted" } });
-        await prisma.repairEvent.create({ data: { repairId: (await prisma.repair.findUnique({ where: { repairCode } }))!.id, status: "submitted", actor: "system" } });
-
-        const trackUrl = `https://mormac.vercel.app/track/${repairCode}`;
-        await fetch("https://api.line.me/v2/bot/message/push", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${LINE_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: userId,
-            messages: [{
-              type: "flex", altText: `แจ้งซ่อมสำเร็จ ${repairCode}`,
-              contents: {
-                type: "bubble",
-                styles: { header: { backgroundColor: "#0F1720" } },
-                header: { type: "box", layout: "vertical", paddingAll: "20px", contents: [
-                  { type: "text", text: "✅ แจ้งซ่อมสำเร็จ!", color: "#28EF33", size: "lg", weight: "bold" },
-                  { type: "text", text: repairCode, color: "#FFFFFF", size: "xxl", weight: "bold", margin: "sm" },
-                ]},
-                body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "20px", contents: [
-                  { type: "box", layout: "horizontal", contents: [
-                    { type: "text", text: "อุปกรณ์", size: "sm", color: "#888888", flex: 3 },
-                    { type: "text", text: deviceModel, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
-                  ]},
-                  { type: "box", layout: "horizontal", contents: [
-                    { type: "text", text: "อาการ", size: "sm", color: "#888888", flex: 3 },
-                    { type: "text", text: ai.symptoms, size: "sm", weight: "bold", color: "#0F1720", flex: 7, wrap: true },
-                  ]},
-                  { type: "separator", color: "#EEEEEE" },
-                  { type: "text", text: "เราจะตรวจเช็คและแจ้งราคาให้ทราบ", size: "xs", color: "#888888", margin: "md", wrap: true },
-                ]},
-                footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", contents: [
-                  { type: "button", style: "primary", color: "#0F1720", height: "sm", action: { type: "uri", label: "🔗 ติดตามสถานะ", uri: trackUrl } },
-                  { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "🧾 ใบปะหน้าส่งเครื่อง", uri: buildShippingCoverUrl(repairCode) } },
-                ]},
-              },
-            }],
-          }),
+        const hasFullName = customer.name !== "LINE User" && /\s/.test(customer.name.trim());
+        const hasPhone = !!customer.phone;
+        const draft: RepairDraftMeta = {
+          kind: "repairDraft",
+          deviceModel,
+          deviceType: ai.type || "other",
+          symptoms: ai.symptoms,
+          specs: ai.specs,
+          fullName: hasFullName ? customer.name : undefined,
+          phone: hasPhone ? customer.phone || undefined : undefined,
+          step: hasFullName ? (hasPhone ? "address" : "phone") : "name",
+        };
+        await prisma.repair.create({
+          data: {
+            repairCode: `TMP-${crypto.randomUUID()}`,
+            shopId: shops[0].id,
+            customerId: customer.id,
+            deviceModel,
+            deviceType: ai.type || "other",
+            symptoms: ai.symptoms,
+            status: "pending_customer_info",
+            photos: JSON.stringify(draft),
+          },
         });
+        if (!hasFullName) {
+          await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยนะคะ\nเช่น สมชาย ใจดี");
+        } else if (!hasPhone) {
+          await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอเบอร์โทรสำหรับติดต่อและใส่ใบปะหน้าส่งกลับด้วยค่ะ\nเช่น 0812345678");
+        } else {
+          await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอที่อยู่สำหรับส่งเครื่องกลับทางไปรษณีย์ด้วยค่ะ\nกรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์");
+        }
         return;
       }
 

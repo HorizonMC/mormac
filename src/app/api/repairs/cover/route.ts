@@ -12,9 +12,12 @@ export async function GET(req: NextRequest) {
 
   const brand = await getBrand();
   const qrDataUrl = await generateTrackingQR(code);
+  const meta = parseRepairMeta(repair.photos);
   const customerName = repair.customer?.name && repair.customer.name !== "LINE User"
     ? repair.customer.name
     : "____________________________";
+  const returnAddress = meta?.returnAddress;
+  const deviceSpecs = meta?.specs;
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>ใบปะหน้าซอง — ${code}</title>
@@ -26,9 +29,12 @@ export async function GET(req: NextRequest) {
 <div class="address-box to">
   <div class="ship-title">TO / ผู้รับ</div>
   <div class="address-name">${customerName}</div>
-  <div class="address-line muted">ที่อยู่สำหรับส่งกลับ: ____________________________________________</div>
+  ${returnAddress
+    ? `<div class="address-line">${returnAddress}</div>`
+    : `<div class="address-line muted">ที่อยู่สำหรับส่งกลับ: ____________________________________________</div>
   <div class="address-line muted">_____________________________________________________________</div>
-  <div class="address-line muted">รหัสไปรษณีย์: ____________ โทร: ${repair.customer?.phone || "________________"}</div>
+  <div class="address-line muted">รหัสไปรษณีย์: ____________</div>`}
+  <div class="address-line">โทร: ${repair.customer?.phone || "________________"}</div>
 </div>
 
 <div class="qr"><img src="${qrDataUrl}" alt="QR"/></div>
@@ -43,6 +49,7 @@ export async function GET(req: NextRequest) {
 
 <div class="info">
   <div class="row"><span class="label">อุปกรณ์</span><span class="value">${repair.deviceModel}</span></div>
+  ${deviceSpecs ? `<div class="row"><span class="label">สเปก</span><span class="value">${deviceSpecs}</span></div>` : ""}
   <div class="row"><span class="label">อาการ</span><span class="value">${repair.symptoms}</span></div>
   <div class="row"><span class="label">วันที่</span><span class="value">${new Date(repair.createdAt).toLocaleDateString("th-TH")}</span></div>
 </div>
@@ -59,4 +66,13 @@ export async function GET(req: NextRequest) {
 </body></html>`;
 
   return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
+
+function parseRepairMeta(value: string | null | undefined): { returnAddress?: string; specs?: string } | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
