@@ -17,7 +17,7 @@ export default async function LoginPage() {
         {/* Logo + Brand */}
         <div className="text-center">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-black mx-auto mb-4 shadow-lg" style={{ background: c.accent, color: c.dark }}>
-            iP
+            D
           </div>
           <h1 className="text-2xl font-black text-white">{brand.name}</h1>
           <p className="text-sm mt-1" style={{ color: c.mint }}>

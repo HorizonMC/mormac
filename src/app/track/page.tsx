@@ -25,7 +25,7 @@ export default async function TrackSearchPage({ searchParams }: Props) {
         {/* Header */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black" style={{ background: c.accent, color: c.dark }}>iP</div>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black" style={{ background: c.accent, color: c.dark }}>D</div>
             <span className="text-white font-bold text-lg">{brand.name}</span>
           </Link>
           <h1 className="text-2xl md:text-3xl font-black text-white mb-2">เช็คสถานะการซ่อม</h1>

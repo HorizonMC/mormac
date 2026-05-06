@@ -73,7 +73,7 @@ export function SettingsForm({ initial, lineConfig }: { initial: BrandConfig; li
             <li>เข้า <span className="font-mono">developers.line.biz</span> → เลือก Channel</li>
             <li>เปิด Messaging API → คัดลอก Channel Secret</li>
             <li>Issue Channel Access Token (Long-lived) → คัดลอก</li>
-            <li>ตั้ง Webhook URL: <span className="font-mono text-[10px]">https://ipartstore-fix.vercel.app/api/line/webhook</span></li>
+            <li>ตั้ง Webhook URL: <span className="font-mono text-[10px]">https://dmc-notebook.vercel.app/api/line/webhook</span></li>
             <li>เปิด Use webhook = ON / ปิด Auto-reply</li>
           </ol>
         </div>

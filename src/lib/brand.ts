@@ -19,11 +19,11 @@ export interface BrandConfig {
 }
 
 const defaults: BrandConfig = {
-  name: "iPartStore Fix",
-  nameTh: "ศูนย์ซ่อมมืออาชีพ",
-  tagline: "Professional Device Repair Platform",
-  phone: "",
-  address: "",
+  name: "DMC Notebook",
+  nameTh: "ศูนย์ซ่อม MacBook & Notebook",
+  tagline: "ซ่อม MacBook Notebook ครบวงจร จ.พิษณุโลก",
+  phone: "083-214-0770",
+  address: "จ.พิษณุโลก",
   logo: "/brand/logo.png",
   favicon: "/favicon.ico",
   colors: {

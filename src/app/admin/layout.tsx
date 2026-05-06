@@ -59,7 +59,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
             style={{ background: c.accent, color: c.dark }}
           >
-            iP
+            D
           </div>
           <div className="min-w-0">
             <p className="text-white font-bold text-sm leading-tight truncate">{brand.name}</p>

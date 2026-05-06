@@ -270,7 +270,7 @@ export async function pushRepairUpdate(lineUserId: string, repairCode: string, s
         contents: [
           {
             type: "button", style: "primary", color: B.dark, height: "sm",
-            action: { type: "uri", label: "ดูรายละเอียด", uri: `https://ipartstore-fix.vercel.app/track/${repairCode}` },
+            action: { type: "uri", label: "ดูรายละเอียด", uri: `https://dmc-notebook.vercel.app/track/${repairCode}` },
           },
         ],
       },

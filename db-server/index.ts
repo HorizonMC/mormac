@@ -14,7 +14,7 @@ const API_KEY = process.env.DB_API_KEY || "mormac-secret-key-change-me";
 
 const app = new Hono();
 
-app.use("*", cors({ origin: ["https://ipartstore-fix.vercel.app", "https://mormac.vercel.app", "http://localhost:3000", "http://localhost:3100", "http://localhost:3200"] }));
+app.use("*", cors({ origin: ["https://dmc-notebook.vercel.app", "https://mormac.vercel.app", "http://localhost:3000", "http://localhost:3100", "http://localhost:3200"] }));
 
 app.use("*", async (c, next) => {
   if (c.req.path.startsWith("/uploads/")) {
@@ -391,11 +391,11 @@ function macSpecsHelpText() {
 }
 
 function buildShippingCoverUrl(repairCode: string) {
-  return `https://ipartstore-fix.vercel.app/api/repairs/cover?code=${encodeURIComponent(repairCode)}`;
+  return `https://dmc-notebook.vercel.app/api/repairs/cover?code=${encodeURIComponent(repairCode)}`;
 }
 
 function buildTrackingUrl(repairCode: string) {
-  return `https://ipartstore-fix.vercel.app/track/${encodeURIComponent(repairCode)}`;
+  return `https://dmc-notebook.vercel.app/track/${encodeURIComponent(repairCode)}`;
 }
 
 function repairStatusText(status: string): string {
@@ -584,7 +584,7 @@ async function nextRepairCode() {
 
 async function pushRepairCreated(userId: string, repairCode: string, fullName: string, draft: RepairDraftMeta) {
   const token = await getLineToken();
-  const trackUrl = `https://ipartstore-fix.vercel.app/track/${repairCode}`;
+  const trackUrl = `https://dmc-notebook.vercel.app/track/${repairCode}`;
   await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -846,7 +846,7 @@ app.post("/ai/handle", async (c) => {
           await linePush(
             userId,
             code
-              ? `รายการนี้ถูกแจ้งไว้แล้วค่ะ เลขซ่อม ${code}\nติดตามสถานะ: https://ipartstore-fix.vercel.app/track/${code}`
+              ? `รายการนี้ถูกแจ้งไว้แล้วค่ะ เลขซ่อม ${code}\nติดตามสถานะ: https://dmc-notebook.vercel.app/track/${code}`
               : "รายการนี้อยู่ระหว่างรอชื่อจริงและนามสกุลค่ะ กรุณาส่งชื่อจริงและนามสกุล เช่น สมชาย ใจดี"
           );
           return;
