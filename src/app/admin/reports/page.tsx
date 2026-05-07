@@ -115,6 +115,13 @@ export default async function ReportsPage({
           >
             Monthly P&amp;L
           </a>
+          <a
+            href="/admin/reports/top-customers"
+            className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90"
+            style={{ background: `${c.accent}18`, color: c.dark }}
+          >
+            Top Customers
+          </a>
         </div>
       </div>
 

@@ -241,6 +241,34 @@ app.get("/customers/:userId/repairs", async (c) => {
   return c.json(repairs);
 });
 
+app.get("/customers/:userId/ltv", async (c) => {
+  const userId = c.req.param("userId");
+  const customer = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      repairs: {
+        include: { rating: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  if (!customer) return c.json({ error: "Not found" }, 404);
+  const completed = customer.repairs.filter((repair) => ["done", "shipped", "returned"].includes(repair.status));
+  const totalRevenue = completed.reduce((sum, repair) => sum + (repair.finalPrice || repair.quotedPrice || 0), 0);
+  const totalCost = completed.reduce((sum, repair) => sum + (repair.partsCost || 0) + (repair.laborCost || 0), 0);
+  const ratings = completed.flatMap((repair) => repair.rating ? [repair.rating.score] : []);
+  return c.json({
+    customer,
+    totalRepairs: customer.repairs.length,
+    completedRepairs: completed.length,
+    totalRevenue,
+    totalCost,
+    totalProfit: totalRevenue - totalCost,
+    avgTicket: completed.length > 0 ? Math.round(totalRevenue / completed.length) : 0,
+    avgRating: ratings.length > 0 ? Math.round((ratings.reduce((sum, score) => sum + score, 0) / ratings.length) * 10) / 10 : null,
+  });
+});
+
 app.get("/customers/:userId/appointments", async (c) => {
   const userId = c.req.param("userId");
   const appointments = await prisma.appointment.findMany({
@@ -1367,6 +1395,31 @@ app.get("/reports/pnl", async (c) => {
     momProfitPct: previous ? pct(current.grossProfit, previous.grossProfit) : null,
     totals,
   });
+});
+
+app.get("/reports/top-customers", async (c) => {
+  const customers = await prisma.user.findMany({
+    where: { role: "customer" },
+    include: { repairs: true },
+  });
+  const rows = customers.map((customer) => {
+    const completed = customer.repairs.filter((repair) => ["done", "shipped", "returned"].includes(repair.status));
+    const totalRevenue = completed.reduce((sum, repair) => sum + (repair.finalPrice || repair.quotedPrice || 0), 0);
+    return {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      totalRepairs: customer.repairs.length,
+      completedRepairs: completed.length,
+      totalRevenue,
+      avgTicket: completed.length > 0 ? Math.round(totalRevenue / completed.length) : 0,
+      lastRepairAt: customer.repairs.reduce<string | null>((latest, repair) => {
+        const current = new Date(repair.createdAt).toISOString();
+        return !latest || current > latest ? current : latest;
+      }, null),
+    };
+  }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+  return c.json(rows.slice(0, 25));
 });
 
 // ===== Reports: Job Profit Detail =====

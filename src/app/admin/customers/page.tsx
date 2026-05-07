@@ -1,5 +1,6 @@
 import { db } from "@/lib/db-client";
 import { getBrand } from "@/lib/brand";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,14 @@ export default async function CustomersPage() {
 
   return (
     <div style={{ background: c.bg }} className="min-h-screen -m-4 p-4 sm:-m-6 sm:p-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-black tracking-tight" style={{ color: c.dark }}>ลูกค้า</h1>
-        <p className="text-sm mt-0.5" style={{ color: c.teal }}>รายชื่อลูกค้าและสถิติ</p>
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight" style={{ color: c.dark }}>ลูกค้า</h1>
+          <p className="text-sm mt-0.5" style={{ color: c.teal }}>รายชื่อลูกค้าและสถิติ</p>
+        </div>
+        <Link href="/admin/reports/top-customers" className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90" style={{ background: c.dark, color: "#fff" }}>
+          Top Customers
+        </Link>
       </div>
 
       {/* Stats */}
@@ -49,7 +55,7 @@ export default async function CustomersPage() {
                     >
                       {(cust.name || "?")[0].toUpperCase()}
                     </div>
-                    <span className="font-bold" style={{ color: c.dark }}>{cust.name}</span>
+                    <Link href={`/admin/customers/${cust.id}`} className="font-bold hover:underline" style={{ color: c.dark }}>{cust.name}</Link>
                   </div>
                 </td>
                 <td className="p-4" style={{ color: c.teal }}>{cust.phone || "—"}</td>
@@ -84,7 +90,7 @@ export default async function CustomersPage() {
       {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {customers.map((cust: any) => (
-          <div key={cust.id} className="bg-white rounded-2xl shadow-sm p-4" style={{ border: `1px solid ${c.dark}08` }}>
+          <Link key={cust.id} href={`/admin/customers/${cust.id}`} className="block bg-white rounded-2xl shadow-sm p-4" style={{ border: `1px solid ${c.dark}08` }}>
             <div className="flex items-center gap-3 mb-3">
               <div
                 className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
@@ -118,7 +124,7 @@ export default async function CustomersPage() {
                 </span>
               )}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

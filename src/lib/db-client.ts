@@ -226,6 +226,28 @@ export interface PnlReport {
   };
 }
 
+export interface CustomerLtvReport {
+  customer: Omit<DbUser, "repairs"> & { repairs: DbRepair[] };
+  totalRepairs: number;
+  completedRepairs: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+  avgTicket: number;
+  avgRating: number | null;
+}
+
+export interface TopCustomerReport {
+  id: string;
+  name: string;
+  phone: string | null;
+  totalRepairs: number;
+  completedRepairs: number;
+  totalRevenue: number;
+  avgTicket: number;
+  lastRepairAt: string | null;
+}
+
 async function dbFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${DB_URL}${path}`, {
     ...options,
@@ -298,6 +320,7 @@ export const db = {
     auth: (phone: string, password: string) => dbFetch<{ userId: string; name: string; phone: string }>("/customers/auth", { method: "POST", body: JSON.stringify({ phone, password }) }),
     repairs: (userId: string) => dbFetch<DbRepair[]>(`/customers/${userId}/repairs`),
     appointments: (userId: string) => dbFetch<DbAppointment[]>(`/customers/${userId}/appointments`),
+    ltv: (userId: string) => dbFetch<CustomerLtvReport>(`/customers/${userId}/ltv`),
   },
   ratings: {
     get: (repairId: string) => dbFetch<DbRating | null>(`/repairs/${repairId}/rating`),
@@ -315,5 +338,6 @@ export const db = {
     monthlyTrend: () => dbFetch<MonthlyTrendReport[]>("/reports/monthly-trend"),
     techPerformance: (period?: string) => dbFetch<TechPerformanceReport>(`/reports/tech-performance${period ? `?period=${period}` : ""}`),
     pnl: () => dbFetch<PnlReport>("/reports/pnl"),
+    topCustomers: () => dbFetch<TopCustomerReport[]>("/reports/top-customers"),
   },
 };
