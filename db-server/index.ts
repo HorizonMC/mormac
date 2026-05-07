@@ -1144,6 +1144,78 @@ app.get("/reports/monthly-trend", async (c) => {
   return c.json(Array.from(map.values()));
 });
 
+// ===== Reports: Monthly P&L Dashboard =====
+app.get("/reports/pnl", async (c) => {
+  const now = new Date();
+  const monthKeys: string[] = [];
+  for (let offset = 11; offset >= 0; offset--) {
+    const month = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    monthKeys.push(`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`);
+  }
+
+  const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const repairs = await prisma.repair.findMany({
+    where: {
+      status: { in: ["done", "shipped", "returned"] },
+      OR: [{ completedAt: { gte: start } }, { completedAt: null, createdAt: { gte: start } }],
+    },
+    select: {
+      createdAt: true,
+      completedAt: true,
+      finalPrice: true,
+      quotedPrice: true,
+      partsCost: true,
+      laborCost: true,
+    },
+  });
+
+  const map = new Map<string, { month: string; revenue: number; cogs: number; labor: number; grossProfit: number; jobs: number }>();
+  for (const key of monthKeys) {
+    map.set(key, { month: key, revenue: 0, cogs: 0, labor: 0, grossProfit: 0, jobs: 0 });
+  }
+
+  for (const repair of repairs) {
+    const date = new Date(repair.completedAt || repair.createdAt);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const entry = map.get(key);
+    if (!entry) continue;
+
+    const revenue = repair.finalPrice || repair.quotedPrice || 0;
+    const cogs = repair.partsCost || 0;
+    const labor = repair.laborCost || 0;
+    entry.jobs++;
+    entry.revenue += revenue;
+    entry.cogs += cogs;
+    entry.labor += labor;
+    entry.grossProfit += revenue - cogs - labor;
+  }
+
+  const months = monthKeys.map((key) => map.get(key)!);
+  const current = months[months.length - 1];
+  const previous = months.length > 1 ? months[months.length - 2] : null;
+  const totals = months.reduce((sum, month) => ({
+    revenue: sum.revenue + month.revenue,
+    cogs: sum.cogs + month.cogs,
+    labor: sum.labor + month.labor,
+    grossProfit: sum.grossProfit + month.grossProfit,
+    jobs: sum.jobs + month.jobs,
+  }), { revenue: 0, cogs: 0, labor: 0, grossProfit: 0, jobs: 0 });
+
+  const pct = (currentValue: number, previousValue: number) => {
+    if (previousValue === 0) return currentValue === 0 ? 0 : null;
+    return Math.round(((currentValue - previousValue) / previousValue) * 1000) / 10;
+  };
+
+  return c.json({
+    months,
+    current,
+    previous,
+    momRevenuePct: previous ? pct(current.revenue, previous.revenue) : null,
+    momProfitPct: previous ? pct(current.grossProfit, previous.grossProfit) : null,
+    totals,
+  });
+});
+
 // ===== Reports: Job Profit Detail =====
 app.get("/reports/job-profit", async (c) => {
   const period = c.req.query("period") || "month";

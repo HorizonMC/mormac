@@ -108,6 +108,13 @@ export default async function ReportsPage({
           >
             Tech Performance
           </a>
+          <a
+            href="/admin/reports/pnl"
+            className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90"
+            style={{ background: `${c.dark}12`, color: c.dark }}
+          >
+            Monthly P&amp;L
+          </a>
         </div>
       </div>
 

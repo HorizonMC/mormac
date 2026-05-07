@@ -189,6 +189,30 @@ export interface TechPerformanceReport {
   techs: TechPerformanceRow[];
 }
 
+export interface PnlMonth {
+  month: string;
+  revenue: number;
+  cogs: number;
+  labor: number;
+  grossProfit: number;
+  jobs: number;
+}
+
+export interface PnlReport {
+  months: PnlMonth[];
+  current: PnlMonth;
+  previous: PnlMonth | null;
+  momRevenuePct: number | null;
+  momProfitPct: number | null;
+  totals: {
+    revenue: number;
+    cogs: number;
+    labor: number;
+    grossProfit: number;
+    jobs: number;
+  };
+}
+
 async function dbFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${DB_URL}${path}`, {
     ...options,
@@ -272,5 +296,6 @@ export const db = {
     topParts: () => dbFetch<TopPartReport[]>("/reports/top-parts"),
     monthlyTrend: () => dbFetch<MonthlyTrendReport[]>("/reports/monthly-trend"),
     techPerformance: (period?: string) => dbFetch<TechPerformanceReport>(`/reports/tech-performance${period ? `?period=${period}` : ""}`),
+    pnl: () => dbFetch<PnlReport>("/reports/pnl"),
   },
 };
