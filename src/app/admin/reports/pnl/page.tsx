@@ -5,8 +5,13 @@ import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
 
-export default async function MonthlyPnlPage() {
-  const [brand, report] = await Promise.all([getBrand(), db.reports.pnl()]);
+export default async function MonthlyPnlPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ shopId?: string }>;
+}) {
+  const { shopId } = await searchParams;
+  const [brand, report] = await Promise.all([getBrand(), db.reports.pnl(shopId)]);
   const c = brand.colors;
   const maxValue = Math.max(...report.months.map((month) => Math.max(month.revenue, month.cogs + month.labor)), 1);
   const grossMargin = report.current.revenue > 0

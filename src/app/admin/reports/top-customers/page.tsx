@@ -4,8 +4,13 @@ import { getBrand } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
-export default async function TopCustomersReportPage() {
-  const [brand, customers] = await Promise.all([getBrand(), db.reports.topCustomers()]);
+export default async function TopCustomersReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ shopId?: string }>;
+}) {
+  const { shopId } = await searchParams;
+  const [brand, customers] = await Promise.all([getBrand(), db.reports.topCustomers(shopId)]);
   const c = brand.colors;
   const topRevenue = Math.max(...customers.map((customer) => customer.totalRevenue), 1);
 

@@ -286,9 +286,18 @@ async function dbFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+function query(params: Record<string, string | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) search.set(key, value);
+  }
+  const value = search.toString();
+  return value ? `?${value}` : "";
+}
+
 export const db = {
   repairs: {
-    list: (status?: string) => dbFetch<DbRepair[]>(`/repairs${status ? `?status=${status}` : ""}`),
+    list: (status?: string, shopId?: string) => dbFetch<DbRepair[]>(`/repairs${query({ status, shopId })}`),
     get: (id: string) => dbFetch<DbRepair>(`/repairs/${id}`),
     getByCode: (code: string) => dbFetch<DbRepair | null>(`/repairs/code/${code}`),
     create: (data: DbRecord) => dbFetch<DbRepair>("/repairs", { method: "POST", body: JSON.stringify(data) }),
@@ -355,14 +364,14 @@ export const db = {
     parse: (message: string) => dbFetch<DbRecord>("/ai/parse", { method: "POST", body: JSON.stringify({ message }) }),
   },
   reports: {
-    summary: (period?: string) => dbFetch<ReportSummary>(`/reports/summary${period ? `?period=${period}` : ""}`),
-    byDevice: () => dbFetch<DeviceReport[]>("/reports/by-device"),
-    byStatus: () => dbFetch<StatusReport[]>("/reports/by-status"),
-    topParts: () => dbFetch<TopPartReport[]>("/reports/top-parts"),
-    monthlyTrend: () => dbFetch<MonthlyTrendReport[]>("/reports/monthly-trend"),
+    summary: (period?: string, shopId?: string) => dbFetch<ReportSummary>(`/reports/summary${query({ period, shopId })}`),
+    byDevice: (shopId?: string) => dbFetch<DeviceReport[]>(`/reports/by-device${query({ shopId })}`),
+    byStatus: (shopId?: string) => dbFetch<StatusReport[]>(`/reports/by-status${query({ shopId })}`),
+    topParts: (shopId?: string) => dbFetch<TopPartReport[]>(`/reports/top-parts${query({ shopId })}`),
+    monthlyTrend: (shopId?: string) => dbFetch<MonthlyTrendReport[]>(`/reports/monthly-trend${query({ shopId })}`),
     techPerformance: (period?: string) => dbFetch<TechPerformanceReport>(`/reports/tech-performance${period ? `?period=${period}` : ""}`),
-    pnl: () => dbFetch<PnlReport>("/reports/pnl"),
-    topCustomers: () => dbFetch<TopCustomerReport[]>("/reports/top-customers"),
-    failurePatterns: () => dbFetch<FailurePatternsReport>("/reports/failure-patterns"),
+    pnl: (shopId?: string) => dbFetch<PnlReport>(`/reports/pnl${query({ shopId })}`),
+    topCustomers: (shopId?: string) => dbFetch<TopCustomerReport[]>(`/reports/top-customers${query({ shopId })}`),
+    failurePatterns: (shopId?: string) => dbFetch<FailurePatternsReport>(`/reports/failure-patterns${query({ shopId })}`),
   },
 };

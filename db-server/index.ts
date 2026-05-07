@@ -54,8 +54,10 @@ app.get("/uploads/:filename", async (c) => {
 // ===== Repairs =====
 app.get("/repairs", async (c) => {
   const status = c.req.query("status");
+  const shopId = c.req.query("shopId");
   const where: Record<string, unknown> = {};
   if (status) where.status = status;
+  if (shopId) where.shopId = shopId;
   const repairs = await prisma.repair.findMany({
     where,
     include: { customer: true, tech: { include: { user: true } }, timeline: { orderBy: { createdAt: "desc" }, take: 1 } },
@@ -1248,13 +1250,16 @@ app.post("/ai/handle", async (c) => {
 // ===== Reports =====
 app.get("/reports/summary", async (c) => {
   const period = c.req.query("period") || "all";
+  const shopId = c.req.query("shopId");
   const now = new Date();
   let dateFilter: Date | undefined;
   if (period === "month") dateFilter = new Date(now.getFullYear(), now.getMonth(), 1);
   else if (period === "week") { dateFilter = new Date(now); dateFilter.setDate(dateFilter.getDate() - 7); }
   else if (period === "year") dateFilter = new Date(now.getFullYear(), 0, 1);
 
-  const where = dateFilter ? { createdAt: { gte: dateFilter } } : {};
+  const where: Record<string, unknown> = {};
+  if (dateFilter) where.createdAt = { gte: dateFilter };
+  if (shopId) where.shopId = shopId;
   const doneWhere = { ...where, status: { in: ["done", "shipped", "returned"] } };
 
   const [totalJobs, completedJobs, cancelledJobs, repairs, ratings] = await Promise.all([
@@ -1302,7 +1307,8 @@ app.get("/reports/summary", async (c) => {
 });
 
 app.get("/reports/by-device", async (c) => {
-  const repairs = await prisma.repair.findMany({ select: { deviceType: true, status: true, finalPrice: true, quotedPrice: true } });
+  const shopId = c.req.query("shopId");
+  const repairs = await prisma.repair.findMany({ where: shopId ? { shopId } : undefined, select: { deviceType: true, status: true, finalPrice: true, quotedPrice: true } });
   const map = new Map<string, { count: number; revenue: number; completed: number }>();
   for (const r of repairs) {
     const key = r.deviceType || "other";
@@ -1318,14 +1324,19 @@ app.get("/reports/by-device", async (c) => {
 });
 
 app.get("/reports/by-status", async (c) => {
-  const repairs = await prisma.repair.findMany({ select: { status: true } });
+  const shopId = c.req.query("shopId");
+  const repairs = await prisma.repair.findMany({ where: shopId ? { shopId } : undefined, select: { status: true } });
   const map = new Map<string, number>();
   for (const r of repairs) map.set(r.status, (map.get(r.status) || 0) + 1);
   return c.json(Array.from(map.entries()).map(([status, count]) => ({ status, count })).sort((a, b) => b.count - a.count));
 });
 
 app.get("/reports/top-parts", async (c) => {
-  const parts = await prisma.repairPart.findMany({ include: { part: true } });
+  const shopId = c.req.query("shopId");
+  const parts = await prisma.repairPart.findMany({
+    where: shopId ? { repair: { shopId } } : undefined,
+    include: { part: true },
+  });
   const map = new Map<string, { name: string; totalQty: number; totalCost: number }>();
   for (const p of parts) {
     const key = p.partId;
@@ -1338,8 +1349,9 @@ app.get("/reports/top-parts", async (c) => {
 });
 
 app.get("/reports/monthly-trend", async (c) => {
+  const shopId = c.req.query("shopId");
   const repairs = await prisma.repair.findMany({
-    where: { status: { in: ["done", "shipped", "returned"] } },
+    where: { status: { in: ["done", "shipped", "returned"] }, ...(shopId ? { shopId } : {}) },
     select: { createdAt: true, finalPrice: true, quotedPrice: true, partsCost: true, laborCost: true },
     orderBy: { createdAt: "asc" },
   });
@@ -1358,6 +1370,7 @@ app.get("/reports/monthly-trend", async (c) => {
 
 // ===== Reports: Monthly P&L Dashboard =====
 app.get("/reports/pnl", async (c) => {
+  const shopId = c.req.query("shopId");
   const now = new Date();
   const monthKeys: string[] = [];
   for (let offset = 11; offset >= 0; offset--) {
@@ -1369,6 +1382,7 @@ app.get("/reports/pnl", async (c) => {
   const repairs = await prisma.repair.findMany({
     where: {
       status: { in: ["done", "shipped", "returned"] },
+      ...(shopId ? { shopId } : {}),
       OR: [{ completedAt: { gte: start } }, { completedAt: null, createdAt: { gte: start } }],
     },
     select: {
@@ -1429,9 +1443,10 @@ app.get("/reports/pnl", async (c) => {
 });
 
 app.get("/reports/top-customers", async (c) => {
+  const shopId = c.req.query("shopId");
   const customers = await prisma.user.findMany({
     where: { role: "customer" },
-    include: { repairs: true },
+    include: { repairs: { where: shopId ? { shopId } : undefined } },
   });
   const rows = customers.map((customer) => {
     const completed = customer.repairs.filter((repair) => ["done", "shipped", "returned"].includes(repair.status));
@@ -1454,7 +1469,9 @@ app.get("/reports/top-customers", async (c) => {
 });
 
 app.get("/reports/failure-patterns", async (c) => {
+  const shopId = c.req.query("shopId");
   const repairs = await prisma.repair.findMany({
+    where: shopId ? { shopId } : undefined,
     select: { deviceModel: true, deviceType: true, symptoms: true, createdAt: true },
     orderBy: { createdAt: "desc" },
   });

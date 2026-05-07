@@ -33,6 +33,7 @@ interface RepairForCsv {
   finalPrice?: number | null;
   partsCost?: number | null;
   laborCost?: number | null;
+  shopId?: string | null;
   customer?: {
     name?: string | null;
     phone?: string | null;
@@ -42,8 +43,9 @@ interface RepairForCsv {
 
 export async function GET(req: NextRequest) {
   const period = parsePeriod(req.nextUrl.searchParams.get("period"));
+  const shopId = req.nextUrl.searchParams.get("shopId") || undefined;
   const cutoff = getPeriodCutoff(period);
-  const repairs = (await loadRepairs())
+  const repairs = (await loadRepairs(shopId))
     .filter((repair) => isInPeriod(repair.createdAt, cutoff))
     .sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt));
 
@@ -82,10 +84,10 @@ export async function GET(req: NextRequest) {
   });
 }
 
-async function loadRepairs(): Promise<RepairForCsv[]> {
+async function loadRepairs(shopId?: string): Promise<RepairForCsv[]> {
   const batches = await Promise.all([
-    db.repairs.list() as Promise<RepairForCsv[]>,
-    ...REPAIR_STATUSES.map((status) => db.repairs.list(status) as Promise<RepairForCsv[]>),
+    db.repairs.list(undefined, shopId) as Promise<RepairForCsv[]>,
+    ...REPAIR_STATUSES.map((status) => db.repairs.list(status, shopId) as Promise<RepairForCsv[]>),
   ]);
   const repairs = new Map<string, RepairForCsv>();
 

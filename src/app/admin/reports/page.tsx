@@ -46,18 +46,21 @@ interface TrendReport {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; shopId?: string }>;
 }) {
-  const { period = "all" } = await searchParams;
-  const [summary, byDevice, byStatus, topParts, trend, brand] = await Promise.all([
-    db.reports.summary(period) as Promise<ReportSummary>,
-    db.reports.byDevice() as Promise<DeviceReport[]>,
-    db.reports.byStatus() as Promise<StatusReport[]>,
-    db.reports.topParts() as Promise<PartReport[]>,
-    db.reports.monthlyTrend() as Promise<TrendReport[]>,
+  const { period = "all", shopId } = await searchParams;
+  const [summary, byDevice, byStatus, topParts, trend, brand, shops] = await Promise.all([
+    db.reports.summary(period, shopId) as Promise<ReportSummary>,
+    db.reports.byDevice(shopId) as Promise<DeviceReport[]>,
+    db.reports.byStatus(shopId) as Promise<StatusReport[]>,
+    db.reports.topParts(shopId) as Promise<PartReport[]>,
+    db.reports.monthlyTrend(shopId) as Promise<TrendReport[]>,
     getBrand(),
+    db.shops.list(),
   ]);
   const c = brand.colors;
+  const shopQuery = shopId ? `&shopId=${shopId}` : "";
+  const selectedShop = shops.find((shop) => shop.id === shopId);
 
   return (
     <div style={{ background: c.bg }} className="min-h-screen -m-4 p-4 sm:-m-6 sm:p-6">
@@ -68,7 +71,7 @@ export default async function ReportsPage({
             รายงาน
           </h1>
           <p className="text-sm mt-0.5" style={{ color: c.teal }}>
-            ภาพรวมผลประกอบการและสถิติ
+            ภาพรวมผลประกอบการและสถิติ{selectedShop ? ` — ${selectedShop.name}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -82,7 +85,7 @@ export default async function ReportsPage({
             ].map((p) => (
               <a
                 key={p.key}
-                href={`/admin/reports?period=${p.key}`}
+                href={`/admin/reports?period=${p.key}${shopQuery}`}
                 className="px-4 py-2 text-xs font-bold rounded-xl transition-all"
                 style={
                   period === p.key
@@ -94,8 +97,27 @@ export default async function ReportsPage({
               </a>
             ))}
           </div>
+          <div className="flex gap-1 rounded-2xl p-1" style={{ background: `${c.dark}08`, border: `1px solid ${c.dark}10` }}>
+            <a
+              href={`/admin/reports?period=${period}`}
+              className="px-4 py-2 text-xs font-bold rounded-xl transition-all"
+              style={!shopId ? { background: c.dark, color: "#fff" } : { color: c.teal }}
+            >
+              ทุกสาขา
+            </a>
+            {shops.map((shop) => (
+              <a
+                key={shop.id}
+                href={`/admin/reports?period=${period}&shopId=${shop.id}`}
+                className="px-4 py-2 text-xs font-bold rounded-xl transition-all"
+                style={shopId === shop.id ? { background: c.dark, color: "#fff" } : { color: c.teal }}
+              >
+                {shop.name}
+              </a>
+            ))}
+          </div>
           <a
-            href={`/api/reports/csv?period=${period}`}
+            href={`/api/reports/csv?period=${period}${shopQuery}`}
             className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90"
             style={{ background: c.accent, color: c.dark }}
           >
@@ -109,21 +131,21 @@ export default async function ReportsPage({
             Tech Performance
           </a>
           <a
-            href="/admin/reports/pnl"
+            href={`/admin/reports/pnl${shopId ? `?shopId=${shopId}` : ""}`}
             className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90"
             style={{ background: `${c.dark}12`, color: c.dark }}
           >
             Monthly P&amp;L
           </a>
           <a
-            href="/admin/reports/top-customers"
+            href={`/admin/reports/top-customers${shopId ? `?shopId=${shopId}` : ""}`}
             className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90"
             style={{ background: `${c.accent}18`, color: c.dark }}
           >
             Top Customers
           </a>
           <a
-            href="/admin/reports/failure-patterns"
+            href={`/admin/reports/failure-patterns${shopId ? `?shopId=${shopId}` : ""}`}
             className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90"
             style={{ background: `${c.dark}08`, color: c.dark }}
           >

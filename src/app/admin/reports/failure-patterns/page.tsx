@@ -4,8 +4,13 @@ import { getBrand } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
-export default async function FailurePatternsPage() {
-  const [brand, report] = await Promise.all([getBrand(), db.reports.failurePatterns()]);
+export default async function FailurePatternsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ shopId?: string }>;
+}) {
+  const { shopId } = await searchParams;
+  const [brand, report] = await Promise.all([getBrand(), db.reports.failurePatterns(shopId)]);
   const c = brand.colors;
   const topModelCount = Math.max(...report.topModels.map((item) => item.count), 1);
   const topSymptomCount = Math.max(...report.topSymptoms.map((item) => item.count), 1);
