@@ -101,6 +101,13 @@ export default async function ReportsPage({
           >
             ดาวน์โหลด CSV
           </a>
+          <a
+            href={`/admin/reports/tech-performance?period=${period}`}
+            className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90"
+            style={{ background: c.dark, color: "#fff" }}
+          >
+            Tech Performance
+          </a>
         </div>
       </div>
 

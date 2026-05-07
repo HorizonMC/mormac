@@ -1243,6 +1243,78 @@ app.get("/reports/by-tech", async (c) => {
   return c.json({ period, techs });
 });
 
+// ===== Reports: Tech Performance Dashboard =====
+app.get("/reports/tech-performance", async (c) => {
+  const period = c.req.query("period") || "month";
+  const now = new Date();
+  let dateFilter: Date | undefined;
+  if (period === "month") dateFilter = new Date(now.getFullYear(), now.getMonth(), 1);
+  else if (period === "week") { dateFilter = new Date(now); dateFilter.setDate(dateFilter.getDate() - 7); }
+  else if (period === "year") dateFilter = new Date(now.getFullYear(), 0, 1);
+
+  const where: Record<string, unknown> = { status: { in: ["done", "shipped", "returned"] }, techId: { not: null } };
+  if (dateFilter) where.createdAt = { gte: dateFilter };
+
+  const repairs = await prisma.repair.findMany({
+    where,
+    include: {
+      tech: { include: { user: true } },
+      rating: true,
+      timeline: { where: { status: "warranty_claim" }, select: { id: true } },
+    },
+  });
+
+  const map = new Map<string, {
+    techId: string;
+    name: string;
+    jobs: number;
+    totalRepairDays: number;
+    warrantyClaims: number;
+    revenue: number;
+    ratingTotal: number;
+    ratingCount: number;
+  }>();
+
+  for (const repair of repairs) {
+    const techId = repair.techId!;
+    const entry = map.get(techId) || {
+      techId,
+      name: repair.tech?.user?.name || "-",
+      jobs: 0,
+      totalRepairDays: 0,
+      warrantyClaims: 0,
+      revenue: 0,
+      ratingTotal: 0,
+      ratingCount: 0,
+    };
+
+    entry.jobs++;
+    entry.revenue += repair.finalPrice || repair.quotedPrice || 0;
+    entry.warrantyClaims += repair.timeline.length;
+    if (repair.completedAt) {
+      entry.totalRepairDays += (new Date(repair.completedAt).getTime() - new Date(repair.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+    }
+    if (repair.rating) {
+      entry.ratingTotal += repair.rating.score;
+      entry.ratingCount++;
+    }
+    map.set(techId, entry);
+  }
+
+  const techs = Array.from(map.values()).map((tech) => ({
+    techId: tech.techId,
+    name: tech.name,
+    jobs: tech.jobs,
+    avgRepairDays: tech.jobs > 0 ? Math.round((tech.totalRepairDays / tech.jobs) * 10) / 10 : 0,
+    warrantyClaims: tech.warrantyClaims,
+    revenue: tech.revenue,
+    avgRating: tech.ratingCount > 0 ? Math.round((tech.ratingTotal / tech.ratingCount) * 10) / 10 : null,
+    ratingCount: tech.ratingCount,
+  })).sort((a, b) => b.revenue - a.revenue);
+
+  return c.json({ period, techs });
+});
+
 // ===== Staff CRUD =====
 app.get("/staff", async (c) => {
   const staff = await prisma.staff.findMany({ include: { user: true } });
