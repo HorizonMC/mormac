@@ -58,7 +58,7 @@ export async function middleware(req: NextRequest) {
     const auth = req.cookies.get("tech_token");
     if (!auth || !(await verifyToken(auth.value, "tech"))) return unauthorized(req);
   }
-  if (req.nextUrl.pathname.startsWith("/my-repairs")) {
+  if (req.nextUrl.pathname.startsWith("/my-repairs") || req.nextUrl.pathname.startsWith("/my-appointments")) {
     const auth = req.cookies.get("customer_token");
     if (!auth || !(await verifyToken(auth.value, "customer"))) return unauthorized(req);
   }
@@ -66,5 +66,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/tech/:path*", "/my-repairs/:path*", "/api/:path*"],
+  matcher: ["/admin/:path*", "/tech/:path*", "/my-repairs/:path*", "/my-appointments/:path*", "/api/:path*"],
 };

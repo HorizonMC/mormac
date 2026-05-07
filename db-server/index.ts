@@ -241,6 +241,45 @@ app.get("/customers/:userId/repairs", async (c) => {
   return c.json(repairs);
 });
 
+app.get("/customers/:userId/appointments", async (c) => {
+  const userId = c.req.param("userId");
+  const appointments = await prisma.appointment.findMany({
+    where: { customerId: userId },
+    orderBy: [{ date: "asc" }, { time: "asc" }],
+  });
+  return c.json(appointments);
+});
+
+// ===== Appointments =====
+app.get("/appointments", async (c) => {
+  const appointments = await prisma.appointment.findMany({
+    include: { customer: { select: { id: true, name: true, phone: true, lineUserId: true } } },
+    orderBy: [{ date: "asc" }, { time: "asc" }],
+  });
+  return c.json(appointments);
+});
+
+app.patch("/appointments/:id/status", async (c) => {
+  const id = c.req.param("id");
+  const { status } = await c.req.json();
+  if (!["pending", "approved", "rejected", "done", "cancelled"].includes(status)) {
+    return c.json({ error: "Invalid status" }, 400);
+  }
+  const appointment = await prisma.appointment.update({
+    where: { id },
+    data: { status },
+    include: { customer: true },
+  });
+  if (appointment.customer.lineUserId) {
+    try {
+      await linePush(appointment.customer.lineUserId, appointmentStatusMessage(appointment));
+    } catch (error) {
+      console.error("LINE appointment status push error:", error);
+    }
+  }
+  return c.json(appointment);
+});
+
 // ===== Parts =====
 app.get("/parts", async (c) => {
   const parts = await prisma.part.findMany({ orderBy: { name: "asc" } });
@@ -372,6 +411,47 @@ type RepairDraftMeta = {
   intakePhotos?: string[];
   step?: "name" | "phone" | "address" | "specs" | "photos";
 };
+
+function appointmentStatusMessage(appointment: { date: string; time: string; status: string }) {
+  const statusText: Record<string, string> = {
+    approved: "อนุมัติแล้ว",
+    rejected: "ปฏิเสธ",
+    done: "เสร็จสิ้น",
+    cancelled: "ยกเลิก",
+    pending: "รออนุมัติ",
+  };
+  return `📅 คิวซ่อม ${statusText[appointment.status] || appointment.status}\nวันที่ ${appointment.date} เวลา ${appointment.time}`;
+}
+
+function parseAppointmentRequest(message: string) {
+  const text = message.trim();
+  const dateMatch = text.match(/(\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)/);
+  const timeMatch = text.match(/(\d{1,2}[:.]\d{2})/);
+  const date = dateMatch?.[1]?.replace(/\//g, "-") || "";
+  const time = timeMatch?.[1]?.replace(".", ":") || "";
+  const lower = text.toLowerCase();
+  const deviceType = lower.includes("mac") ? "macbook"
+    : lower.includes("iphone") ? "iphone"
+    : lower.includes("ipad") ? "ipad"
+    : lower.includes("watch") ? "apple watch"
+    : lower.includes("airpods") ? "airpods"
+    : "other";
+  const symptoms = text
+    .replace(/จองคิว/g, "")
+    .replace(dateMatch?.[0] || "", "")
+    .replace(timeMatch?.[0] || "", "")
+    .trim()
+    .slice(0, 240);
+  return { date, time, deviceType, symptoms: symptoms || "แจ้งอาการหน้างาน" };
+}
+
+async function ensureLineCustomer(userId: string) {
+  return await prisma.user.upsert({
+    where: { lineUserId: userId },
+    update: {},
+    create: { lineUserId: userId, name: "LINE User", role: "customer" },
+  });
+}
 
 function warrantyExpiryFrom(completedAt: Date | string | null | undefined, warrantyDays = 180): Date | null {
   if (!completedAt) return null;
@@ -845,6 +925,47 @@ app.post("/ai/handle", async (c) => {
   const task = (async () => {
     try {
       let customer = await prisma.user.findUnique({ where: { lineUserId: userId } });
+      const pendingAppointment = await prisma.appointment.findFirst({
+        where: { customer: { lineUserId: userId }, status: "draft" },
+        orderBy: { createdAt: "desc" },
+      });
+      if (pendingAppointment) {
+        const parsed = parseAppointmentRequest(message);
+        if (!parsed.date || !parsed.time) {
+          await linePush(userId, "ขอวันและเวลาที่ต้องการจองคิวด้วยค่ะ\nตัวอย่าง: 2026-05-10 14:00 MacBook เปิดไม่ติด");
+          return;
+        }
+        const appointment = await prisma.appointment.update({
+          where: { id: pendingAppointment.id },
+          data: {
+            date: parsed.date,
+            time: parsed.time,
+            deviceType: parsed.deviceType,
+            symptoms: parsed.symptoms,
+            status: "pending",
+          },
+        });
+        await linePush(userId, `รับคำขอจองคิวแล้วค่ะ 📅\nวันที่ ${appointment.date} เวลา ${appointment.time}\nร้านจะตรวจสอบและยืนยันให้อีกครั้งนะคะ`);
+        return;
+      }
+
+      if (/^จองคิว$/i.test(message.trim()) || message.trim().startsWith("จองคิว ")) {
+        customer = customer || await ensureLineCustomer(userId);
+        const parsed = parseAppointmentRequest(message);
+        if (!parsed.date || !parsed.time) {
+          await prisma.appointment.create({
+            data: { customerId: customer.id, date: "", time: "", deviceType: "", symptoms: "", status: "draft" },
+          });
+          await linePush(userId, "ได้เลยค่ะ ต้องการจองวันและเวลาไหน แจ้งพร้อมรุ่นเครื่อง/อาการได้เลยค่ะ\nตัวอย่าง: 2026-05-10 14:00 MacBook เปิดไม่ติด");
+          return;
+        }
+        const appointment = await prisma.appointment.create({
+          data: { customerId: customer.id, ...parsed, status: "pending" },
+        });
+        await linePush(userId, `รับคำขอจองคิวแล้วค่ะ 📅\nวันที่ ${appointment.date} เวลา ${appointment.time}\nร้านจะตรวจสอบและยืนยันให้อีกครั้งนะคะ`);
+        return;
+      }
+
       const pendingRepair = await prisma.repair.findFirst({
         where: { customer: { lineUserId: userId }, status: { in: ["pending_customer_name", "pending_customer_info"] } },
         include: { customer: true },

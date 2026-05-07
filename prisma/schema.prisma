@@ -40,6 +40,7 @@ model User {
   ownedShops Shop[]   @relation("ShopOwner")
   repairs    Repair[]
   staff      Staff[]
+  appointments Appointment[]
 }
 
 model Staff {
@@ -158,6 +159,20 @@ model Notification {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model Appointment {
+  id         String   @id @default(cuid())
+  customerId String
+  date       String
+  time       String
+  deviceType String
+  symptoms   String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer User @relation(fields: [customerId], references: [id])
 }
 
 model Config {

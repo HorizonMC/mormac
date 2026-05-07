@@ -102,6 +102,19 @@ export interface DbNotification {
   createdAt: string | Date;
 }
 
+export interface DbAppointment {
+  id: string;
+  customerId: string;
+  date: string;
+  time: string;
+  deviceType: string;
+  symptoms: string;
+  status: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  customer?: Pick<DbUser, "id" | "name" | "phone" | "lineUserId"> | null;
+}
+
 export interface DbStaff {
   id: string;
   userId: string;
@@ -251,6 +264,10 @@ export const db = {
     list: (unread?: boolean) => dbFetch<DbNotification[]>(`/notifications${unread ? "?unread=true" : ""}`),
     markRead: (id: string) => dbFetch<DbNotification>(`/notifications/${id}/read`, { method: "PATCH" }),
   },
+  appointments: {
+    list: () => dbFetch<DbAppointment[]>("/appointments"),
+    updateStatus: (id: string, status: string) => dbFetch<DbAppointment>(`/appointments/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  },
   devices: {
     list: () => dbFetch<DbDevice[]>("/devices"),
     create: (data: DbRecord) => dbFetch<DbDevice>("/devices", { method: "POST", body: JSON.stringify(data) }),
@@ -280,6 +297,7 @@ export const db = {
     register: (data: { name: string; phone: string; password: string }) => dbFetch<{ userId: string; name: string; phone: string }>("/customers/register", { method: "POST", body: JSON.stringify(data) }),
     auth: (phone: string, password: string) => dbFetch<{ userId: string; name: string; phone: string }>("/customers/auth", { method: "POST", body: JSON.stringify({ phone, password }) }),
     repairs: (userId: string) => dbFetch<DbRepair[]>(`/customers/${userId}/repairs`),
+    appointments: (userId: string) => dbFetch<DbAppointment[]>(`/customers/${userId}/appointments`),
   },
   ratings: {
     get: (repairId: string) => dbFetch<DbRating | null>(`/repairs/${repairId}/rating`),

@@ -5,6 +5,7 @@ import { AdminMobileMenu } from "./admin-mobile-menu";
 const adminLinks = [
   { href: "/admin", label: "แดชบอร์ด", icon: "grid" },
   { href: "/admin/queue", label: "คิวงาน", icon: "list" },
+  { href: "/admin/appointments", label: "นัดหมาย", icon: "calendar" },
   { href: "/admin/devices", label: "เครื่อง", icon: "device" },
   { href: "/admin/parts", label: "อะไหล่", icon: "box" },
   { href: "/admin/notifications", label: "แจ้งเตือน", icon: "bell" },
@@ -23,6 +24,8 @@ function NavIcon({ name, size = 18 }: { name: string; size?: number }) {
       return <svg {...props}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
     case "list":
       return <svg {...props}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
+    case "calendar":
+      return <svg {...props}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
     case "device":
       return <svg {...props}><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>;
     case "box":
