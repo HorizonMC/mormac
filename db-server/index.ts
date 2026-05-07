@@ -70,6 +70,7 @@ app.get("/repairs/:id", async (c) => {
       tech: { include: { user: true } },
       timeline: { orderBy: { createdAt: "desc" } },
       partsUsed: { include: { part: true } },
+      rating: true,
     },
   });
   return repair ? c.json(repair) : c.json({ error: "Not found" }, 404);
@@ -196,6 +197,34 @@ app.post("/users", async (c) => {
 app.get("/users/line/:lineUserId", async (c) => {
   const user = await prisma.user.findUnique({ where: { lineUserId: c.req.param("lineUserId") } });
   return user ? c.json(user) : c.json(null);
+});
+
+// ===== Customer Self-Service =====
+app.post("/customers/register", async (c) => {
+  const { name, phone, password } = await c.req.json();
+  if (!name || !phone || !password) return c.json({ error: "Missing required fields" }, 400);
+  const existing = await prisma.user.findFirst({ where: { phone, role: "customer", password: { not: null } } });
+  if (existing) return c.json({ error: "Phone already registered" }, 409);
+  const user = await prisma.user.create({ data: { name, phone, password, role: "customer" } });
+  return c.json({ userId: user.id, name: user.name, phone: user.phone }, 201);
+});
+
+app.post("/customers/auth", async (c) => {
+  const { phone, password } = await c.req.json();
+  if (!phone || !password) return c.json({ error: "Missing credentials" }, 400);
+  const user = await prisma.user.findFirst({ where: { phone, password, role: "customer" } });
+  if (!user) return c.json({ error: "Invalid credentials" }, 401);
+  return c.json({ userId: user.id, name: user.name, phone: user.phone });
+});
+
+app.get("/customers/:userId/repairs", async (c) => {
+  const userId = c.req.param("userId");
+  const repairs = await prisma.repair.findMany({
+    where: { customerId: userId },
+    include: { shop: true, timeline: { orderBy: { createdAt: "desc" }, take: 1 } },
+    orderBy: { createdAt: "desc" },
+  });
+  return c.json(repairs);
 });
 
 // ===== Parts =====
@@ -916,13 +945,17 @@ app.get("/reports/summary", async (c) => {
   const where = dateFilter ? { createdAt: { gte: dateFilter } } : {};
   const doneWhere = { ...where, status: { in: ["done", "shipped", "returned"] } };
 
-  const [totalJobs, completedJobs, cancelledJobs, repairs] = await Promise.all([
+  const [totalJobs, completedJobs, cancelledJobs, repairs, ratings] = await Promise.all([
     prisma.repair.count({ where }),
     prisma.repair.count({ where: doneWhere }),
     prisma.repair.count({ where: { ...where, status: "cancelled" } }),
     prisma.repair.findMany({
       where: doneWhere,
       select: { quotedPrice: true, finalPrice: true, partsCost: true, laborCost: true, deviceType: true, deviceModel: true, createdAt: true, completedAt: true },
+    }),
+    prisma.rating.findMany({
+      where: dateFilter ? { createdAt: { gte: dateFilter } } : {},
+      select: { score: true },
     }),
   ]);
 
@@ -940,12 +973,19 @@ app.get("/reports/summary", async (c) => {
     return sum + (new Date(r.completedAt!).getTime() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24);
   }, 0) / (completedJobs || 1);
 
+  const totalRatings = ratings.length;
+  const avgRating = totalRatings > 0
+    ? Math.round((ratings.reduce((sum, r) => sum + r.score, 0) / totalRatings) * 10) / 10
+    : null;
+
   return c.json({
     totalJobs, completedJobs, cancelledJobs,
     activeJobs: totalJobs - completedJobs - cancelledJobs,
     totalRevenue, totalPartsCost, totalLaborCost, totalCost, totalProfit, avgTicket,
     avgTurnaroundDays: Math.round(avgTurnaround * 10) / 10,
     margin: totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 100) : 0,
+    avgRating,
+    totalRatings,
   });
 });
 
@@ -1207,6 +1247,32 @@ app.post("/tech/:staffId/repairs/:repairId/requisition", async (c) => {
     prisma.repair.update({ where: { id: repairId }, data: { partsCost: newPartsCost } }),
   ]);
   return c.json(repairPart, 201);
+});
+
+// ===== Ratings =====
+app.post("/repairs/:id/rating", async (c) => {
+  const id = c.req.param("id");
+  const repair = await prisma.repair.findUnique({ where: { id }, select: { id: true, status: true } });
+  if (!repair) return c.json({ error: "Not found" }, 404);
+  if (!["done", "shipped", "returned"].includes(repair.status)) {
+    return c.json({ error: "Repair must be done, shipped, or returned to rate" }, 400);
+  }
+  const existing = await prisma.rating.findUnique({ where: { repairId: id } });
+  if (existing) return c.json({ error: "Already rated" }, 409);
+  const { score, comment } = await c.req.json();
+  if (typeof score !== "number" || score < 1 || score > 5) {
+    return c.json({ error: "Score must be 1-5" }, 400);
+  }
+  const rating = await prisma.rating.create({
+    data: { repairId: id, score, comment: comment || null },
+  });
+  return c.json(rating, 201);
+});
+
+app.get("/repairs/:id/rating", async (c) => {
+  const id = c.req.param("id");
+  const rating = await prisma.rating.findUnique({ where: { repairId: id } });
+  return c.json(rating);
 });
 
 // ===== Repair Code Generator =====

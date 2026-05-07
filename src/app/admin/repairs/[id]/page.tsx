@@ -10,6 +10,13 @@ import { AssignTechForm } from "./assign-tech-form";
 interface Props { params: Promise<{ id: string }>; }
 export const dynamic = "force-dynamic";
 
+interface RepairRating {
+  id: string;
+  score: number;
+  comment?: string | null;
+  createdAt: string | Date;
+}
+
 interface RepairDetail {
   id: string;
   repairCode: string;
@@ -25,6 +32,7 @@ interface RepairDetail {
   tech?: { user?: { name?: string | null } | null } | null;
   partsUsed?: RepairPartUsed[];
   timeline?: RepairTimelineEvent[];
+  rating?: RepairRating | null;
 }
 
 interface RepairPartUsed {
@@ -211,6 +219,36 @@ export default async function RepairDetailPage({ params }: Props) {
 
         {/* Repair Photos */}
         <RepairPhotos repairId={repair.id} initialPhotos={[]} uploadBaseUrl={uploadBaseUrl} />
+
+        {/* Customer Rating */}
+        {repair.rating && (
+          <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 mb-6" style={{ border: `1px solid ${c.dark}08` }}>
+            <p className="font-bold mb-4" style={{ color: c.dark }}>คะแนนจากลูกค้า</p>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <svg
+                    key={star}
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill={star <= repair.rating!.score ? "#FFD700" : "#D1D5DB"}
+                    stroke={star <= repair.rating!.score ? "#FFD700" : "#D1D5DB"}
+                    strokeWidth="1"
+                  >
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                ))}
+              </div>
+              <span className="text-lg font-black" style={{ color: c.dark }}>{repair.rating.score}/5</span>
+            </div>
+            {repair.rating.comment && (
+              <p className="text-sm mt-3 p-3 rounded-xl" style={{ background: `${c.dark}04`, color: c.teal }}>
+                {repair.rating.comment}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Timeline */}
         <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6" style={{ border: `1px solid ${c.dark}08` }}>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface Props {
   colors: {
@@ -47,6 +48,17 @@ export function LoginForm({ colors }: Props) {
         return;
       }
 
+      // Try customer login (phone + password)
+      const customerRes = await fetch("/api/customer/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: username, password }),
+      });
+      if (customerRes.ok) {
+        router.push("/my-repairs");
+        return;
+      }
+
       setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
       setPassword("");
     } catch {
@@ -64,14 +76,14 @@ export function LoginForm({ colors }: Props) {
       >
         <div>
           <label htmlFor="login-username" className="block text-sm font-medium mb-1.5" style={{ color: colors.mint }}>
-            ชื่อผู้ใช้
+            ชื่อผู้ใช้ / เบอร์โทร
           </label>
           <input
             id="login-username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="username"
+            placeholder="username หรือ เบอร์โทร"
             required
             autoComplete="username"
             autoFocus
@@ -107,6 +119,13 @@ export function LoginForm({ colors }: Props) {
       >
         {loading ? "กำลังเข้าสู่ระบบ..." : "Login"}
       </button>
+
+      <p className="text-center text-sm" style={{ color: colors.mint }}>
+        ลูกค้าใหม่?{" "}
+        <Link href="/register" className="font-bold underline" style={{ color: colors.accent }}>
+          สมัครสมาชิก
+        </Link>
+      </p>
     </form>
   );
 }

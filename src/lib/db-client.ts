@@ -113,6 +113,14 @@ export interface DbStats {
   recentRepairs?: DbRepair[];
 }
 
+export interface DbRating {
+  id: string;
+  repairId: string;
+  score: number;
+  comment: string | null;
+  createdAt: string | Date;
+}
+
 export interface ReportSummary {
   totalJobs: number;
   completedJobs: number;
@@ -126,6 +134,8 @@ export interface ReportSummary {
   avgTicket: number;
   avgTurnaroundDays: number;
   margin: number;
+  avgRating: number | null;
+  totalRatings: number;
 }
 
 export interface DeviceReport {
@@ -211,6 +221,15 @@ export const db = {
     repairDetail: (staffId: string, repairId: string) => dbFetch<DbRepair>(`/tech/${staffId}/repairs/${repairId}`),
     updateStatus: (staffId: string, repairId: string, data: Record<string, unknown>) => dbFetch<DbRepair>(`/tech/${staffId}/repairs/${repairId}/status`, { method: "PATCH", body: JSON.stringify(data) }),
     requisition: (staffId: string, repairId: string, data: { partId: string; quantity: number; cost: number }) => dbFetch<unknown>(`/tech/${staffId}/repairs/${repairId}/requisition`, { method: "POST", body: JSON.stringify(data) }),
+  },
+  customer: {
+    register: (data: { name: string; phone: string; password: string }) => dbFetch<{ userId: string; name: string; phone: string }>("/customers/register", { method: "POST", body: JSON.stringify(data) }),
+    auth: (phone: string, password: string) => dbFetch<{ userId: string; name: string; phone: string }>("/customers/auth", { method: "POST", body: JSON.stringify({ phone, password }) }),
+    repairs: (userId: string) => dbFetch<DbRepair[]>(`/customers/${userId}/repairs`),
+  },
+  ratings: {
+    get: (repairId: string) => dbFetch<DbRating | null>(`/repairs/${repairId}/rating`),
+    create: (repairId: string, data: { score: number; comment?: string }) => dbFetch<DbRating>(`/repairs/${repairId}/rating`, { method: "POST", body: JSON.stringify(data) }),
   },
   stats: () => dbFetch<DbStats>("/stats"),
   ai: {

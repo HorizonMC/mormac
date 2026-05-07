@@ -32,9 +32,15 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
   }
+  if (req.nextUrl.pathname.startsWith("/my-repairs")) {
+    const auth = req.cookies.get("customer_token");
+    if (!auth || !(await verifyToken(auth.value))) {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+  }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/tech/:path*"],
+  matcher: ["/admin/:path*", "/tech/:path*", "/my-repairs/:path*"],
 };

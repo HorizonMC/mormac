@@ -3,6 +3,7 @@ import { repairStatusText } from "@/lib/line";
 import { getBrand } from "@/lib/brand";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { RatingForm } from "./rating-form";
 
 interface Props {
   params: Promise<{ code: string }>;
@@ -30,6 +31,9 @@ export default async function TrackPage({ params }: Props) {
 
   const repair = await db.repairs.getByCode(code);
   if (!repair) notFound();
+
+  const canRate = ["done", "shipped", "returned"].includes(repair.status);
+  const rating = canRate ? await db.ratings.get(repair.id) : null;
 
   const currentIdx = STATUSES.indexOf(repair.status);
   const photos = parsePhotos(repair.photos);
@@ -197,6 +201,40 @@ export default async function TrackPage({ params }: Props) {
             })}
           </div>
         </div>
+
+        {/* Rating */}
+        {canRate && (
+          <div className="bg-white rounded-2xl p-5 mb-4 border" style={{ borderColor: `${c.mint}22` }}>
+            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: c.accent }}>
+              {rating ? "Customer Rating" : "Rate Our Service"}
+            </p>
+            {rating ? (
+              <div className="text-center">
+                <div className="flex justify-center gap-1 mb-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <svg
+                      key={star}
+                      width="28"
+                      height="28"
+                      viewBox="0 0 24 24"
+                      fill={star <= rating.score ? "#FFD700" : "#D1D5DB"}
+                      stroke={star <= rating.score ? "#FFD700" : "#D1D5DB"}
+                      strokeWidth="1"
+                    >
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                  ))}
+                </div>
+                <p className="text-sm font-bold" style={{ color: c.dark }}>{rating.score}/5</p>
+                {rating.comment && (
+                  <p className="text-sm mt-2" style={{ color: c.teal }}>{rating.comment}</p>
+                )}
+              </div>
+            ) : (
+              <RatingForm repairId={repair.id} brandColors={c} />
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center pb-8 pt-2">

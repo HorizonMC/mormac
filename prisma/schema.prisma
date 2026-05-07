@@ -30,6 +30,7 @@ model User {
   name         String
   phone        String?
   email        String?
+  password     String?
   role         String   @default("customer")
   memberTier   String   @default("none")
   memberPoints Int      @default(0)
@@ -87,6 +88,7 @@ model Repair {
   tech      Staff?        @relation("AssignedTech", fields: [techId], references: [id])
   partsUsed RepairPart[]
   timeline  RepairEvent[]
+  rating    Rating?
 }
 
 model RepairEvent {
@@ -152,4 +154,14 @@ model Config {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  repairId  String   @unique
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  repair Repair @relation(fields: [repairId], references: [id])
 }
