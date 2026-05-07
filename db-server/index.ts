@@ -481,6 +481,7 @@ function repairStatusText(status: string): string {
     returned: "ลูกค้ารับคืนแล้ว",
     cancelled: "ยกเลิก",
     pending_customer_info: "รอข้อมูลลูกค้า",
+    warranty_claim: "เคลมประกัน",
   };
   return map[status] || status;
 }
