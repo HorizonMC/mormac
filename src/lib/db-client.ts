@@ -94,6 +94,14 @@ export interface DbPart {
   updatedAt: string | Date;
 }
 
+export interface DbNotification {
+  id: string;
+  type: string;
+  message: string;
+  read: boolean;
+  createdAt: string | Date;
+}
+
 export interface DbStaff {
   id: string;
   userId: string;
@@ -198,6 +206,10 @@ export const db = {
     list: () => dbFetch<DbPart[]>("/parts"),
     create: (data: DbRecord) => dbFetch<DbPart>("/parts", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: DbRecord) => dbFetch<DbPart>(`/parts/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  },
+  notifications: {
+    list: (unread?: boolean) => dbFetch<DbNotification[]>(`/notifications${unread ? "?unread=true" : ""}`),
+    markRead: (id: string) => dbFetch<DbNotification>(`/notifications/${id}/read`, { method: "PATCH" }),
   },
   devices: {
     list: () => dbFetch<DbDevice[]>("/devices"),

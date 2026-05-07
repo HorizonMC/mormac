@@ -8,8 +8,11 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   const brand = await getBrand();
   const c = brand.colors;
-  const stats = await db.stats();
-  const repairs = await db.repairs.list();
+  const [stats, repairs, unreadNotifications] = await Promise.all([
+    db.stats(),
+    db.repairs.list(),
+    db.notifications.list(true),
+  ]);
   const active = repairs.filter((r: any) => !["returned", "cancelled"].includes(r.status));
   const recent = active.slice(0, 8);
 
@@ -47,13 +50,32 @@ export default async function AdminPage() {
   return (
     <div>
       {/* Welcome Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-black" style={{ color: c.dark }}>
-          สวัสดี, {brand.name}
-        </h1>
-        <p className="text-sm mt-1" style={{ color: c.teal }}>
-          ภาพรวมร้านซ่อมวันนี้
-        </p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black" style={{ color: c.dark }}>
+            สวัสดี, {brand.name}
+          </h1>
+          <p className="text-sm mt-1" style={{ color: c.teal }}>
+            ภาพรวมร้านซ่อมวันนี้
+          </p>
+        </div>
+        <Link
+          href="/admin/notifications"
+          className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-gray-100 bg-white shadow-sm transition hover:shadow-md"
+          aria-label="การแจ้งเตือน"
+          title="การแจ้งเตือน"
+          style={{ color: c.dark }}
+        >
+          🔔
+          {unreadNotifications.length > 0 && (
+            <span
+              className="absolute -right-1 -top-1 min-w-5 rounded-full px-1.5 py-0.5 text-center text-[11px] font-black"
+              style={{ background: c.accent, color: c.dark }}
+            >
+              {unreadNotifications.length}
+            </span>
+          )}
+        </Link>
       </div>
 
       {/* Summary Stat Cards */}

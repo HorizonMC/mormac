@@ -174,6 +174,7 @@ app.post("/repairs/:id/parts", async (c) => {
     prisma.part.update({ where: { id: partId }, data: { quantity: { decrement: quantity } } }),
     prisma.repair.update({ where: { id }, data: { partsCost: newPartsCost } }),
   ]);
+  await createLowStockNotification(partId);
   return c.json(repairPart, 201);
 });
 
@@ -239,13 +240,36 @@ app.get("/parts", async (c) => {
 
 app.post("/parts", async (c) => {
   const body = await c.req.json();
-  return c.json(await prisma.part.create({ data: body }), 201);
+  const part = await prisma.part.create({ data: body });
+  await createLowStockNotification(part.id);
+  return c.json(part, 201);
 });
 
 app.patch("/parts/:id", async (c) => {
   const { id } = c.req.param() as { id: string };
   const body = await c.req.json();
-  return c.json(await prisma.part.update({ where: { id }, data: body }));
+  const part = await prisma.part.update({ where: { id }, data: body });
+  await createLowStockNotification(part.id);
+  return c.json(part);
+});
+
+// ===== Notifications =====
+app.get("/notifications", async (c) => {
+  const unread = c.req.query("unread") === "true";
+  const notifications = await prisma.notification.findMany({
+    where: unread ? { read: false } : undefined,
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+  return c.json(notifications);
+});
+
+app.patch("/notifications/:id/read", async (c) => {
+  const notification = await prisma.notification.update({
+    where: { id: c.req.param("id") },
+    data: { read: true },
+  });
+  return c.json(notification);
 });
 
 // ===== Devices =====
@@ -307,7 +331,8 @@ app.get("/stats", async (c) => {
     prisma.device.count(),
     prisma.device.count({ where: { status: "ready" } }),
   ]);
-  const lowStockParts = await prisma.part.findMany({ where: { quantity: { lte: 3 } }, orderBy: { quantity: "asc" }, take: 10 });
+  const parts = await prisma.part.findMany({ orderBy: { quantity: "asc" } });
+  const lowStockParts = parts.filter((part) => part.quantity < part.alertAt).slice(0, 10);
   const recentRepairs = await prisma.repair.findMany({ include: { customer: true }, orderBy: { createdAt: "desc" }, take: 10 });
   return c.json({ totalRepairs, activeRepairs, completedRepairs, totalDevices, readyDevices, lowStockParts, recentRepairs });
 });
@@ -721,6 +746,29 @@ async function linePush(userId: string, text: string) {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ to: userId, messages: [{ type: "text", text }] }),
   });
+}
+
+async function createLowStockNotification(partId: string) {
+  const part = await prisma.part.findUnique({
+    where: { id: partId },
+    include: { shop: { include: { owner: true } } },
+  });
+  if (!part || part.quantity >= part.alertAt) return;
+
+  const message = `อะไหล่ ${part.name}${part.sku ? ` (${part.sku})` : ""} เหลือ ${part.quantity} ชิ้น ต่ำกว่าจุดเตือน ${part.alertAt} ชิ้น`;
+  const existing = await prisma.notification.findFirst({
+    where: { type: "low_stock", read: false, message: { contains: part.name } },
+  });
+  if (existing) return;
+
+  await prisma.notification.create({ data: { type: "low_stock", message } });
+  if (part.shop.owner.lineUserId) {
+    try {
+      await linePush(part.shop.owner.lineUserId, `🔔 แจ้งเตือนสต็อกต่ำ\n${message}`);
+    } catch (error) {
+      console.error("LINE low stock push error:", error);
+    }
+  }
 }
 
 async function linePushFlex(userId: string, message: Record<string, unknown>) {
@@ -1302,6 +1350,7 @@ app.post("/tech/:staffId/repairs/:repairId/requisition", async (c) => {
     prisma.part.update({ where: { id: partId }, data: { quantity: { decrement: quantity } } }),
     prisma.repair.update({ where: { id: repairId }, data: { partsCost: newPartsCost } }),
   ]);
+  await createLowStockNotification(partId);
   return c.json(repairPart, 201);
 });
 

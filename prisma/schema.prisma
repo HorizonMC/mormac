@@ -152,6 +152,14 @@ model RepairPart {
   part   Part   @relation(fields: [partId], references: [id])
 }
 
+model Notification {
+  id        String   @id @default(cuid())
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
 model Config {
   key       String   @id
   value     String

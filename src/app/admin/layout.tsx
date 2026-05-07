@@ -7,6 +7,7 @@ const adminLinks = [
   { href: "/admin/queue", label: "คิวงาน", icon: "list" },
   { href: "/admin/devices", label: "เครื่อง", icon: "device" },
   { href: "/admin/parts", label: "อะไหล่", icon: "box" },
+  { href: "/admin/notifications", label: "แจ้งเตือน", icon: "bell" },
   { href: "/admin/customers", label: "ลูกค้า", icon: "users" },
   { href: "/admin/staff", label: "จัดการช่าง", icon: "wrench" },
   { href: "/admin/overview", label: "ภาพรวม", icon: "chart" },
@@ -26,6 +27,8 @@ function NavIcon({ name, size = 18 }: { name: string; size?: number }) {
       return <svg {...props}><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>;
     case "box":
       return <svg {...props}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
+    case "bell":
+      return <svg {...props}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>;
     case "users":
       return <svg {...props}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
     case "wrench":
