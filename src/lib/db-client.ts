@@ -44,6 +44,8 @@ export interface DbRepair {
   qcPhotos: string | null;
   shippingMethod: string | null;
   trackingNo: string | null;
+  warrantyDays: number;
+  warrantyExpiry: string | Date | null;
   createdAt: string | Date;
   updatedAt: string | Date;
   completedAt: string | Date | null;

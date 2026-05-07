@@ -79,6 +79,8 @@ model Repair {
   qcPhotos       String?
   shippingMethod String?
   trackingNo     String?
+  warrantyDays   Int       @default(180)
+  warrantyExpiry DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   completedAt    DateTime?

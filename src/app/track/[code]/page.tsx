@@ -23,6 +23,28 @@ function parsePhotos(val: string | null | undefined): string[] {
   }
 }
 
+function warrantyInfo(repair: {
+  completedAt: string | Date | null;
+  warrantyDays?: number | null;
+  warrantyExpiry?: string | Date | null;
+}) {
+  if (!repair.completedAt) return null;
+  const expiry = repair.warrantyExpiry
+    ? new Date(repair.warrantyExpiry)
+    : addDays(new Date(repair.completedAt), repair.warrantyDays ?? 180);
+  if (Number.isNaN(expiry.getTime())) return null;
+  return {
+    inWarranty: expiry.getTime() >= Date.now(),
+    expiry,
+  };
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
 export default async function TrackPage({ params }: Props) {
   const { code } = await params;
   const brand = await getBrand();
@@ -39,6 +61,7 @@ export default async function TrackPage({ params }: Props) {
   const photos = parsePhotos(repair.photos);
   const customer = repair.customer;
   const date = new Date(repair.createdAt).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+  const warranty = warrantyInfo(repair);
 
   const progressPercent = Math.round(((currentIdx + 1) / STATUSES.length) * 100);
 
@@ -144,6 +167,26 @@ export default async function TrackPage({ params }: Props) {
                   <p className="text-2xl font-black" style={{ color: c.accent }}>{"฿"}{repair.finalPrice.toLocaleString()}</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Warranty */}
+        {warranty && (
+          <div className="bg-white rounded-2xl p-5 mb-4 border" style={{ borderColor: `${c.mint}22` }}>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: c.accent }}>Warranty</p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-lg font-black" style={{ color: warranty.inWarranty ? c.accent : c.teal }}>
+                  {warranty.inWarranty ? "อยู่ในประกัน" : "หมดประกัน"}
+                </p>
+                <p className="text-xs mt-1" style={{ color: c.teal }}>
+                  ถึงวันที่ {warranty.expiry.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
+                </p>
+              </div>
+              <div className="rounded-xl px-3 py-2 text-xs font-bold" style={{ background: warranty.inWarranty ? `${c.accent}15` : `${c.dark}08`, color: warranty.inWarranty ? c.accent : c.teal }}>
+                {repair.warrantyDays ?? 180} วัน
+              </div>
             </div>
           </div>
         )}

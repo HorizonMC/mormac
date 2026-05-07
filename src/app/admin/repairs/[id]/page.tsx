@@ -28,6 +28,9 @@ interface RepairDetail {
   quotedPrice?: number | null;
   finalPrice?: number | null;
   laborCost?: number | null;
+  completedAt?: string | Date | null;
+  warrantyDays?: number | null;
+  warrantyExpiry?: string | Date | null;
   customer?: { name?: string | null; phone?: string | null } | null;
   tech?: { user?: { name?: string | null } | null } | null;
   partsUsed?: RepairPartUsed[];
@@ -75,6 +78,7 @@ export default async function RepairDetailPage({ params }: Props) {
   const profit = revenue !== null ? toNumber(revenue) - totalCost : null;
   const intakePhotos = parsePhotoPaths(repair.photos);
   const uploadBaseUrl = process.env.DB_API_URL || "http://localhost:4100";
+  const warranty = warrantyInfo(repair);
 
   return (
     <div style={{ background: c.bg }} className="min-h-screen -m-4 p-4 sm:-m-6 sm:p-6">
@@ -156,6 +160,21 @@ export default async function RepairDetailPage({ params }: Props) {
             <p className="text-2xl font-black" style={{ color: c.dark }}>
               {repair.quotedPrice !== null && repair.quotedPrice !== undefined ? money(repair.quotedPrice) : "—"}
             </p>
+          </InfoCard>
+
+          <InfoCard label="ประกัน" dark={c.dark} teal={c.teal}>
+            {warranty ? (
+              <>
+                <p className="font-black" style={{ color: warranty.inWarranty ? c.accent : c.teal }}>
+                  {warranty.inWarranty ? "อยู่ในประกัน" : "หมดประกัน"}
+                </p>
+                <p className="text-sm" style={{ color: c.teal }}>
+                  ถึง {warranty.expiry.toLocaleDateString("th-TH")}
+                </p>
+              </>
+            ) : (
+              <p className="font-bold" style={{ color: c.teal }}>ยังไม่เริ่ม</p>
+            )}
           </InfoCard>
         </div>
 
@@ -350,4 +369,26 @@ function formatDateTime(value: string | Date) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return `${date.toLocaleDateString("th-TH")} ${date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function warrantyInfo(repair: {
+  completedAt?: string | Date | null;
+  warrantyDays?: number | null;
+  warrantyExpiry?: string | Date | null;
+}) {
+  if (!repair.completedAt) return null;
+  const expiry = repair.warrantyExpiry
+    ? new Date(repair.warrantyExpiry)
+    : addDays(new Date(repair.completedAt), repair.warrantyDays ?? 180);
+  if (Number.isNaN(expiry.getTime())) return null;
+  return {
+    inWarranty: expiry.getTime() >= Date.now(),
+    expiry,
+  };
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
 }

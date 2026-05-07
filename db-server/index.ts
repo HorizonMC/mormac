@@ -145,7 +145,11 @@ app.patch("/repairs/:id/status", async (c) => {
   if (quotedPrice !== undefined) updateData.quotedPrice = quotedPrice;
   if (laborCost !== undefined) updateData.laborCost = laborCost;
   if (techId !== undefined) updateData.techId = techId;
-  if (status === "done") updateData.completedAt = new Date();
+  if (status === "done") {
+    const completedAt = new Date();
+    updateData.completedAt = completedAt;
+    updateData.warrantyExpiry = warrantyExpiryFrom(completedAt);
+  }
   await prisma.repair.update({ where: { id }, data: updateData });
   if (status) await prisma.repairEvent.create({ data: { repairId: id, status, note, actor } });
   const repair = await prisma.repair.findUnique({ where: { id }, include: { customer: true } });
@@ -332,6 +336,42 @@ type RepairDraftMeta = {
   intakePhotos?: string[];
   step?: "name" | "phone" | "address" | "specs" | "photos";
 };
+
+function warrantyExpiryFrom(completedAt: Date | string | null | undefined, warrantyDays = 180): Date | null {
+  if (!completedAt) return null;
+  const completed = new Date(completedAt);
+  if (Number.isNaN(completed.getTime())) return null;
+  const expiry = new Date(completed);
+  expiry.setDate(expiry.getDate() + warrantyDays);
+  return expiry;
+}
+
+function normalizedText(value: string | null | undefined): string {
+  return (value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function sameRepairIssue(a: { deviceModel?: string | null; symptoms?: string | null }, b: { deviceModel?: string | null; symptoms?: string | null }) {
+  return normalizedText(a.deviceModel) === normalizedText(b.deviceModel)
+    && normalizedText(a.symptoms) === normalizedText(b.symptoms);
+}
+
+async function findActiveWarrantyRepair(customerId: string, deviceModel: string, symptoms: string) {
+  const repairs = await prisma.repair.findMany({
+    where: {
+      customerId,
+      status: { in: ["done", "shipped", "returned"] },
+      completedAt: { not: null },
+    },
+    orderBy: { completedAt: "desc" },
+    take: 20,
+  });
+  const now = Date.now();
+  return repairs.find((repair) => {
+    if (!sameRepairIssue(repair, { deviceModel, symptoms })) return false;
+    const expiry = repair.warrantyExpiry || warrantyExpiryFrom(repair.completedAt, repair.warrantyDays);
+    return expiry ? new Date(expiry).getTime() >= now : false;
+  }) || null;
+}
 
 async function downloadLineImage(messageId: string): Promise<string | null> {
   try {
@@ -884,6 +924,7 @@ app.post("/ai/handle", async (c) => {
         if (!customer) customer = await prisma.user.create({ data: { lineUserId: userId, name: "LINE User", role: "customer" } });
         const hasFullName = customer.name !== "LINE User" && /\s/.test(customer.name.trim());
         const hasPhone = !!customer.phone;
+        const warrantyRepair = await findActiveWarrantyRepair(customer.id, deviceModel, ai.symptoms);
         const draft: RepairDraftMeta = {
           kind: "repairDraft",
           deviceModel,
@@ -894,7 +935,7 @@ app.post("/ai/handle", async (c) => {
           phone: hasPhone ? customer.phone || undefined : undefined,
           step: hasFullName ? (hasPhone ? "address" : "phone") : "name",
         };
-        await prisma.repair.create({
+        const repair = await prisma.repair.create({
           data: {
             repairCode: `TMP-${crypto.randomUUID()}`,
             shopId: shops[0].id,
@@ -906,6 +947,16 @@ app.post("/ai/handle", async (c) => {
             photos: JSON.stringify(draft),
           },
         });
+        if (warrantyRepair) {
+          await prisma.repairEvent.create({
+            data: {
+              repairId: repair.id,
+              status: "warranty_claim",
+              actor: "system",
+              note: `Warranty claim: same issue as ${warrantyRepair.repairCode}`,
+            },
+          });
+        }
         if (!hasFullName) {
           await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยนะคะ\nเช่น สมชาย ใจดี");
         } else if (!hasPhone) {
@@ -1225,7 +1276,11 @@ app.patch("/tech/:staffId/repairs/:repairId/status", async (c) => {
   if (!repair) return c.json({ error: "Not found" }, 404);
   if (repair.techId !== staffId) return c.json({ error: "Not your repair" }, 403);
   const updateData: Record<string, unknown> = { status };
-  if (status === "done") updateData.completedAt = new Date();
+  if (status === "done") {
+    const completedAt = new Date();
+    updateData.completedAt = completedAt;
+    updateData.warrantyExpiry = warrantyExpiryFrom(completedAt);
+  }
   await prisma.repair.update({ where: { id: repairId }, data: updateData });
   await prisma.repairEvent.create({ data: { repairId, status, note, actor: `tech:${staffId}` } });
   const updated = await prisma.repair.findUnique({ where: { id: repairId }, include: { customer: true } });

@@ -31,6 +31,7 @@ export function repairStatusText(status: string): string {
     shipped: "📦 จัดส่งแล้ว",
     returned: "🏠 ลูกค้ารับคืนแล้ว",
     cancelled: "❌ ยกเลิก",
+    warranty_claim: "🛡️ เคลมประกัน",
   };
   return map[status] || status;
 }
