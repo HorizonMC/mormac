@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-const DEV_SECRET = "mormac-dev-auth-secret";
+const SECRET_FALLBACK = "mormac-auth-secret";
 
 export interface AuthPayload {
   iat: number;
@@ -13,7 +13,7 @@ export interface AuthPayload {
 }
 
 export function authSecret(): string {
-  return process.env.LINE_CHANNEL_SECRET || (process.env.NODE_ENV === "production" ? "" : DEV_SECRET);
+  return process.env.LINE_CHANNEL_SECRET || SECRET_FALLBACK;
 }
 
 export function signToken(payload: AuthPayload): string {

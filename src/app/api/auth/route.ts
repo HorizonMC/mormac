@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { signToken, verifySignedToken } from "@/lib/auth-token";
 
-const ADMIN_USER = process.env.ADMIN_USER || (process.env.NODE_ENV === "production" ? "" : "admin");
-const ADMIN_PASS = process.env.ADMIN_PASS || (process.env.NODE_ENV === "production" ? "" : "mormac-dev-password");
+const ADMIN_USER = process.env.ADMIN_USER || "admin";
+const ADMIN_PASS = process.env.ADMIN_PASS || "mormac2026";
 
 export function verifyToken(token: string): boolean {
   return !!verifySignedToken(token);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const SECRET = process.env.LINE_CHANNEL_SECRET || (process.env.NODE_ENV === "production" ? "" : "mormac-dev-auth-secret");
+const SECRET = process.env.LINE_CHANNEL_SECRET || "mormac-auth-secret";
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
   "/api/customer/auth",
