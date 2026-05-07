@@ -29,8 +29,8 @@ interface RepairDetail {
 
 interface RepairPartUsed {
   id: string;
-  quantity: number;
-  cost: number;
+  quantity?: number | null;
+  cost?: number | null;
   part?: { name?: string | null } | null;
 }
 
@@ -44,8 +44,8 @@ interface RepairTimelineEvent {
 interface AvailablePart {
   id: string;
   name: string;
-  costPrice: number;
-  quantity: number;
+  costPrice?: number | null;
+  quantity?: number | null;
 }
 
 export default async function RepairDetailPage({ params }: Props) {
@@ -58,12 +58,13 @@ export default async function RepairDetailPage({ params }: Props) {
 
   const c = brand.colors;
   const staffList = await db.staff.list();
-  const availableParts = ((await db.parts.list()) as AvailablePart[]).filter((p) => p.quantity > 0);
+  const availableParts = ((await db.parts.list()) as AvailablePart[]).filter((p) => toNumber(p.quantity) > 0);
   const usedParts = repair.partsUsed || [];
-  const partsCost = usedParts.reduce((sum, p) => sum + p.cost, 0);
-  const laborCost = repair.laborCost || 0;
+  const partsCost = usedParts.reduce((sum, p) => sum + toNumber(p.cost), 0);
+  const laborCost = toNumber(repair.laborCost);
   const totalCost = partsCost + laborCost;
-  const profit = repair.finalPrice ? repair.finalPrice - totalCost : repair.quotedPrice ? repair.quotedPrice - totalCost : null;
+  const revenue = repair.finalPrice ?? repair.quotedPrice ?? null;
+  const profit = revenue !== null ? toNumber(revenue) - totalCost : null;
   const intakePhotos = parsePhotoPaths(repair.photos);
   const uploadBaseUrl = process.env.DB_API_URL || "http://localhost:4100";
 
@@ -145,7 +146,7 @@ export default async function RepairDetailPage({ params }: Props) {
 
           <InfoCard label="ราคาประเมิน" dark={c.dark} teal={c.teal}>
             <p className="text-2xl font-black" style={{ color: c.dark }}>
-              {repair.quotedPrice ? `฿${repair.quotedPrice.toLocaleString()}` : "—"}
+              {repair.quotedPrice !== null && repair.quotedPrice !== undefined ? money(repair.quotedPrice) : "—"}
             </p>
           </InfoCard>
         </div>
@@ -156,20 +157,20 @@ export default async function RepairDetailPage({ params }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
             <div className="text-center p-3 rounded-xl" style={{ background: `${c.dark}04` }}>
               <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: c.teal }}>อะไหล่</p>
-              <p className="text-lg font-black" style={{ color: c.dark }}>฿{partsCost.toLocaleString()}</p>
+              <p className="text-lg font-black" style={{ color: c.dark }}>{money(partsCost)}</p>
             </div>
             <div className="text-center p-3 rounded-xl" style={{ background: `${c.dark}04` }}>
               <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: c.teal }}>ค่าแรง</p>
-              <p className="text-lg font-black" style={{ color: c.dark }}>฿{laborCost.toLocaleString()}</p>
+              <p className="text-lg font-black" style={{ color: c.dark }}>{money(laborCost)}</p>
             </div>
             <div className="text-center p-3 rounded-xl" style={{ background: "#FEF2F2" }}>
               <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#DC2626" }}>ต้นทุนรวม</p>
-              <p className="text-lg font-black text-red-600">฿{totalCost.toLocaleString()}</p>
+              <p className="text-lg font-black text-red-600">{money(totalCost)}</p>
             </div>
             <div className="text-center p-3 rounded-xl" style={{ background: profit !== null && profit >= 0 ? `${c.accent}10` : "#FEF2F2" }}>
               <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: c.teal }}>กำไร</p>
               <p className="text-lg font-black" style={{ color: profit !== null && profit >= 0 ? c.accent : "#EF4444" }}>
-                {profit !== null ? `${profit >= 0 ? "+" : ""}฿${profit.toLocaleString()}` : "—"}
+                {profit !== null ? `${profit >= 0 ? "+" : ""}${money(profit)}` : "—"}
               </p>
             </div>
           </div>
@@ -178,14 +179,14 @@ export default async function RepairDetailPage({ params }: Props) {
             <div className="mb-4 rounded-xl overflow-hidden" style={{ border: `1px solid ${c.dark}06` }}>
               {usedParts.map((pu) => (
                 <div key={pu.id} className="flex justify-between text-sm px-4 py-2.5" style={{ borderBottom: `1px solid ${c.dark}06` }}>
-                  <span style={{ color: c.dark }}>{pu.part?.name} x{pu.quantity}</span>
-                  <span style={{ color: c.teal }}>฿{pu.cost.toLocaleString()}</span>
+                  <span style={{ color: c.dark }}>{pu.part?.name || "อะไหล่"} x{toNumber(pu.quantity)}</span>
+                  <span style={{ color: c.teal }}>{money(pu.cost)}</span>
                 </div>
               ))}
             </div>
           )}
 
-          <PartsUsedForm repairId={repair.id} availableParts={availableParts.map((p) => ({ id: p.id, name: p.name, costPrice: p.costPrice, quantity: p.quantity }))} currentLaborCost={laborCost} />
+          <PartsUsedForm repairId={repair.id} availableParts={availableParts.map((p) => ({ id: p.id, name: p.name, costPrice: toNumber(p.costPrice), quantity: toNumber(p.quantity) }))} currentLaborCost={laborCost} />
         </div>
 
         {/* Status Update Card */}
@@ -200,8 +201,8 @@ export default async function RepairDetailPage({ params }: Props) {
             <p className="font-bold mb-4" style={{ color: c.dark }}>รูปจากลูกค้า (ก่อนส่งเครื่อง)</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {intakePhotos.map((photo) => (
-                <a key={photo} href={`${uploadBaseUrl}${photo}`} target="_blank" className="block aspect-square rounded-xl overflow-hidden bg-gray-50" style={{ border: `1px solid ${c.dark}08` }}>
-                  <img src={`${uploadBaseUrl}${photo}`} alt="Intake" className="w-full h-full object-cover" />
+                <a key={photo} href={imageUrl(photo, uploadBaseUrl)} target="_blank" className="block aspect-square rounded-xl overflow-hidden bg-gray-50" style={{ border: `1px solid ${c.dark}08` }}>
+                  <img src={imageUrl(photo, uploadBaseUrl)} alt="Intake" className="w-full h-full object-cover" />
                 </a>
               ))}
             </div>
@@ -238,7 +239,7 @@ export default async function RepairDetailPage({ params }: Props) {
                         {repairStatusText(e.status)}
                       </span>
                       <span className="text-xs" style={{ color: c.teal }}>
-                        {new Date(e.createdAt).toLocaleDateString("th-TH")} {new Date(e.createdAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                        {formatDateTime(e.createdAt)}
                       </span>
                     </div>
                     {e.note && (
@@ -278,8 +279,37 @@ function parsePhotoPaths(value: string | null | undefined) {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+    if (Array.isArray(parsed)) return parsed.filter(isPhotoPath);
+    if (parsed && typeof parsed === "object" && "intakePhotos" in parsed) {
+      const photos = (parsed as { intakePhotos?: unknown }).intakePhotos;
+      return Array.isArray(photos) ? photos.filter(isPhotoPath) : [];
+    }
+    return [];
   } catch {
     return [];
   }
+}
+
+function isPhotoPath(item: unknown): item is string {
+  return typeof item === "string" && item.length > 0;
+}
+
+function imageUrl(path: string, baseUrl: string) {
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedBase = baseUrl.replace(/\/$/, "");
+  return `${normalizedBase}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function toNumber(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function money(value: number | null | undefined) {
+  return `฿${toNumber(value).toLocaleString("th-TH")}`;
+}
+
+function formatDateTime(value: string | Date) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return `${date.toLocaleDateString("th-TH")} ${date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`;
 }
