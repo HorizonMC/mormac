@@ -42,7 +42,7 @@ async function handleEvent(event: any) {
   // Image message — forward to DB server for photo intake
   if (event.type === "message" && event.message.type === "image") {
     const dbUrl = process.env.DB_API_URL || "http://localhost:4100";
-    const dbKey = process.env.DB_API_KEY || "";
+    const dbKey = process.env.DB_API_KEY || (process.env.NODE_ENV === "production" ? "" : "mormac-dev-db-key");
     try {
       await fetch(`${dbUrl}/ai/handle`, {
         method: "POST",
@@ -95,7 +95,7 @@ async function handleEvent(event: any) {
     // Vercel may stop background work after the response, so the handoff itself
     // must be awaited. The DB server returns immediately and pushes the LINE reply.
     const dbUrl = process.env.DB_API_URL || "http://localhost:4100";
-    const dbKey = process.env.DB_API_KEY || "mormac-artron-2026";
+    const dbKey = process.env.DB_API_KEY || (process.env.NODE_ENV === "production" ? "" : "mormac-dev-db-key");
     try {
       const res = await fetch(`${dbUrl}/ai/handle`, {
         method: "POST",

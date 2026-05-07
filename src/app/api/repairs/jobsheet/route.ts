@@ -5,30 +5,55 @@ import { generateTrackingQR } from "@/lib/qr";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  if (!code) return NextResponse.json({ error: "Missing code" }, { status: 400 });
+  if (!code || !/^MOR-\d{4}-\d{4}$/i.test(code)) return NextResponse.json({ error: "Invalid code" }, { status: 400 });
 
-  const repair = await db.repairs.getByCode(code);
+  const repair = await db.repairs.getByCode(code.toUpperCase());
   if (!repair) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const brand = await getBrand();
   const qrDataUrl = await generateTrackingQR(code);
-  const c = brand.colors;
+  const c = {
+    dark: cssColor(brand.colors.dark),
+    teal: cssColor(brand.colors.teal),
+    accent: cssColor(brand.colors.accent),
+  };
   const date = new Date(repair.createdAt).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
   const customer = repair.customer || { name: "", phone: null, lineUserId: null };
+  const safeCode = escapeHtml(code.toUpperCase());
+  const safeBrand = {
+    name: escapeHtml(brand.name),
+    nameTh: escapeHtml(brand.nameTh),
+    tagline: escapeHtml(brand.tagline || ""),
+    address: escapeHtml(brand.address || ""),
+    phone: escapeHtml(brand.phone || ""),
+    logo: safeImageSrc(brand.logo),
+  };
+  const safeRepair = {
+    deviceModel: escapeHtml(repair.deviceModel),
+    deviceType: escapeHtml(repair.deviceType),
+    serialNo: escapeHtml(repair.serialNo || "—"),
+    imei: escapeHtml(repair.imei || "—"),
+    symptoms: escapeHtml(repair.symptoms),
+  };
+  const safeCustomer = {
+    name: escapeHtml(customer.name || ""),
+    phone: escapeHtml(customer.phone || ""),
+    line: customer.lineUserId ? "เชื่อมต่อแล้ว" : "—",
+  };
 
   const section = (title: string, copy: string) => `
   <div class="sheet">
     <div class="sheet-header">
       <div class="brand-col">
-        ${brand.logo ? `<img src="${brand.logo}" class="brand-logo" alt="">` : ""}
-        <div class="brand-name">${brand.name}</div>
-        <div class="brand-sub">${brand.nameTh}${brand.tagline ? ` — ${brand.tagline}` : ""}</div>
-        ${brand.address ? `<div class="brand-addr">${brand.address}</div>` : ""}
-        ${brand.phone ? `<div class="brand-addr">โทร: ${brand.phone}</div>` : ""}
+        ${safeBrand.logo ? `<img src="${safeBrand.logo}" class="brand-logo" alt="">` : ""}
+        <div class="brand-name">${safeBrand.name}</div>
+        <div class="brand-sub">${safeBrand.nameTh}${safeBrand.tagline ? ` — ${safeBrand.tagline}` : ""}</div>
+        ${safeBrand.address ? `<div class="brand-addr">${safeBrand.address}</div>` : ""}
+        ${safeBrand.phone ? `<div class="brand-addr">โทร: ${safeBrand.phone}</div>` : ""}
       </div>
       <div class="doc-col">
         <div class="doc-title">${title}</div>
-        <div class="doc-no">${code}</div>
+        <div class="doc-no">${safeCode}</div>
         <div class="doc-copy">${copy}</div>
       </div>
     </div>
@@ -37,11 +62,11 @@ export async function GET(req: NextRequest) {
       <div class="info-section">
         <div class="section-title">ข้อมูลลูกค้า</div>
         <div class="field-row">
-          <div class="field"><span class="flabel">ชื่อลูกค้า</span><span class="fvalue">${customer.name || ""}</span></div>
-          <div class="field"><span class="flabel">เบอร์โทร</span><span class="fvalue">${customer.phone || ""}</span></div>
+          <div class="field"><span class="flabel">ชื่อลูกค้า</span><span class="fvalue">${safeCustomer.name}</span></div>
+          <div class="field"><span class="flabel">เบอร์โทร</span><span class="fvalue">${safeCustomer.phone}</span></div>
         </div>
         <div class="field-row">
-          <div class="field"><span class="flabel">LINE</span><span class="fvalue">${customer.lineUserId ? "เชื่อมต่อแล้ว" : "—"}</span></div>
+          <div class="field"><span class="flabel">LINE</span><span class="fvalue">${safeCustomer.line}</span></div>
           <div class="field"><span class="flabel">วันที่รับ</span><span class="fvalue">${date}</span></div>
         </div>
       </div>
@@ -49,19 +74,19 @@ export async function GET(req: NextRequest) {
       <div class="info-section">
         <div class="section-title">ข้อมูลเครื่อง</div>
         <div class="field-row">
-          <div class="field"><span class="flabel">รุ่น/ยี่ห้อ</span><span class="fvalue">${repair.deviceModel}</span></div>
-          <div class="field"><span class="flabel">ประเภท</span><span class="fvalue">${repair.deviceType}</span></div>
+          <div class="field"><span class="flabel">รุ่น/ยี่ห้อ</span><span class="fvalue">${safeRepair.deviceModel}</span></div>
+          <div class="field"><span class="flabel">ประเภท</span><span class="fvalue">${safeRepair.deviceType}</span></div>
         </div>
         <div class="field-row">
-          <div class="field"><span class="flabel">S/N</span><span class="fvalue">${repair.serialNo || "—"}</span></div>
-          <div class="field"><span class="flabel">IMEI</span><span class="fvalue">${repair.imei || "—"}</span></div>
+          <div class="field"><span class="flabel">S/N</span><span class="fvalue">${safeRepair.serialNo}</span></div>
+          <div class="field"><span class="flabel">IMEI</span><span class="fvalue">${safeRepair.imei}</span></div>
         </div>
       </div>
     </div>
 
     <div class="symptoms-box">
       <div class="section-title">อาการเสีย / ปัญหาที่พบ</div>
-      <div class="symptoms-text">${repair.symptoms}</div>
+      <div class="symptoms-text">${safeRepair.symptoms}</div>
     </div>
 
     <div class="extras-row">
@@ -102,7 +127,7 @@ export async function GET(req: NextRequest) {
       <div class="sig-box">
         <div class="sig-line"></div>
         <div class="sig-label">ลงชื่อลูกค้า</div>
-        <div class="sig-sub">(${customer.name || "______________________"})</div>
+        <div class="sig-sub">(${safeCustomer.name || "______________________"})</div>
       </div>
       <div class="sig-box">
         <div class="sig-line"></div>
@@ -111,11 +136,11 @@ export async function GET(req: NextRequest) {
       </div>
     </div>
 
-    <div class="sheet-footer">${brand.name} ${brand.nameTh} — ${brand.tagline || ""}</div>
+    <div class="sheet-footer">${safeBrand.name} ${safeBrand.nameTh} — ${safeBrand.tagline}</div>
   </div>`;
 
   const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>ใบรับซ่อม ${code}</title>
+<html><head><meta charset="utf-8"><title>ใบรับซ่อม ${safeCode}</title>
 <style>
   @page { size: A4; margin: 8mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -187,4 +212,27 @@ ${section("ใบรับซ่อม", "สำเนา — มอบให้
 </body></html>`;
 
   return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[char] || char));
+}
+
+function cssColor(value: unknown): string {
+  const color = String(value ?? "");
+  return /^#[0-9a-f]{3,8}$/i.test(color) ? color : "#0F1720";
+}
+
+function safeImageSrc(value: unknown): string {
+  const src = String(value ?? "");
+  if (src.startsWith("/") || /^https:\/\/[^\s"'<>]+$/i.test(src) || /^data:image\/[a-z+.-]+;base64,[a-z0-9+/=]+$/i.test(src)) {
+    return escapeHtml(src);
+  }
+  return "";
 }

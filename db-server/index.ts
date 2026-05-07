@@ -10,7 +10,7 @@ const uploadsDir = path.resolve(import.meta.dir, "../public/uploads");
 const adapter = new PrismaLibSql({ url: `file:${dbPath}` });
 const prisma = new PrismaClient({ adapter });
 
-const API_KEY = process.env.DB_API_KEY || "mormac-secret-key-change-me";
+const API_KEY = process.env.DB_API_KEY || (process.env.NODE_ENV === "production" ? "" : "mormac-dev-db-key");
 
 const app = new Hono();
 
@@ -22,6 +22,9 @@ app.use("*", async (c, next) => {
     return;
   }
   const key = c.req.header("x-api-key");
+  if (!API_KEY) {
+    return c.json({ error: "DB API key is not configured" }, 500);
+  }
   if (key !== API_KEY) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -166,8 +169,14 @@ app.patch("/repairs/:id/status", async (c) => {
 app.post("/repairs/:id/parts", async (c) => {
   const id = c.req.param("id");
   const { partId, quantity, cost } = await c.req.json();
+  if (!partId || !isPositiveInteger(quantity) || !isNonNegativeNumber(cost)) {
+    return c.json({ error: "Invalid partId, quantity, or cost" }, 400);
+  }
   const repair = await prisma.repair.findUnique({ where: { id }, select: { partsCost: true } });
   if (!repair) return c.json({ error: "Not found" }, 404);
+  const part = await prisma.part.findUnique({ where: { id: partId }, select: { quantity: true } });
+  if (!part) return c.json({ error: "Part not found" }, 404);
+  if (part.quantity < quantity) return c.json({ error: "Insufficient stock" }, 400);
   const newPartsCost = (repair.partsCost || 0) + cost;
   const [repairPart] = await prisma.$transaction([
     prisma.repairPart.create({ data: { repairId: id, partId, quantity, cost } }),
@@ -240,6 +249,7 @@ app.get("/parts", async (c) => {
 
 app.post("/parts", async (c) => {
   const body = await c.req.json();
+  if (!isValidPartPayload(body)) return c.json({ error: "Invalid part payload" }, 400);
   const part = await prisma.part.create({ data: body });
   await createLowStockNotification(part.id);
   return c.json(part, 201);
@@ -248,6 +258,7 @@ app.post("/parts", async (c) => {
 app.patch("/parts/:id", async (c) => {
   const { id } = c.req.param() as { id: string };
   const body = await c.req.json();
+  if (!isValidPartPayload(body, true)) return c.json({ error: "Invalid part payload" }, 400);
   const part = await prisma.part.update({ where: { id }, data: body });
   await createLowStockNotification(part.id);
   return c.json(part);
@@ -373,6 +384,27 @@ function warrantyExpiryFrom(completedAt: Date | string | null | undefined, warra
 
 function normalizedText(value: string | null | undefined): string {
   return (value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return Number.isInteger(value) && value > 0;
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isValidPartPayload(body: Record<string, unknown>, partial = false): boolean {
+  if (!body || typeof body !== "object") return false;
+  if (!partial && (!body.shopId || !body.name)) return false;
+  if (body.shopId !== undefined && typeof body.shopId !== "string") return false;
+  if (body.name !== undefined && (typeof body.name !== "string" || body.name.trim().length === 0)) return false;
+  if (body.sku !== undefined && body.sku !== null && typeof body.sku !== "string") return false;
+  if (body.category !== undefined && body.category !== null && typeof body.category !== "string") return false;
+  if (body.quantity !== undefined && (!Number.isInteger(body.quantity) || body.quantity < 0)) return false;
+  if (body.costPrice !== undefined && !isNonNegativeNumber(body.costPrice)) return false;
+  if (body.alertAt !== undefined && (!Number.isInteger(body.alertAt) || body.alertAt < 0)) return false;
+  return true;
 }
 
 function sameRepairIssue(a: { deviceModel?: string | null; symptoms?: string | null }, b: { deviceModel?: string | null; symptoms?: string | null }) {
@@ -1483,10 +1515,13 @@ app.patch("/tech/:staffId/repairs/:repairId/status", async (c) => {
 app.post("/tech/:staffId/repairs/:repairId/requisition", async (c) => {
   const { staffId, repairId } = c.req.param() as { staffId: string; repairId: string };
   const { partId, quantity, cost } = await c.req.json();
-  if (!partId || !quantity || cost === undefined) return c.json({ error: "Missing partId, quantity, or cost" }, 400);
+  if (!partId || !isPositiveInteger(quantity) || !isNonNegativeNumber(cost)) return c.json({ error: "Invalid partId, quantity, or cost" }, 400);
   const repair = await prisma.repair.findUnique({ where: { id: repairId }, select: { techId: true, partsCost: true } });
   if (!repair) return c.json({ error: "Not found" }, 404);
   if (repair.techId !== staffId) return c.json({ error: "Not your repair" }, 403);
+  const part = await prisma.part.findUnique({ where: { id: partId }, select: { quantity: true } });
+  if (!part) return c.json({ error: "Part not found" }, 404);
+  if (part.quantity < quantity) return c.json({ error: "Insufficient stock" }, 400);
   const currentPartsCost = repair.partsCost || 0;
   const newPartsCost = currentPartsCost + cost;
   const [repairPart] = await prisma.$transaction([

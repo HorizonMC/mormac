@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import crypto from "crypto";
 import { db } from "@/lib/db-client";
-
-const SECRET = process.env.LINE_CHANNEL_SECRET || "mormac-auth-secret";
-
-function signToken(payload: string): string {
-  const sig = crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
-  return `${Buffer.from(payload).toString("base64")}.${sig}`;
-}
+import { signToken } from "@/lib/auth-token";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,14 +12,13 @@ export async function POST(req: NextRequest) {
 
     const staff = await db.tech.auth(username, password);
 
-    const payload = JSON.stringify({
+    const token = signToken({
       iat: Date.now(),
       staffId: staff.staffId,
       name: staff.name,
       role: "tech",
       perms: staff.perms,
     });
-    const token = signToken(payload);
 
     (await cookies()).set("tech_token", token, {
       httpOnly: true,
