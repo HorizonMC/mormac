@@ -494,6 +494,37 @@ function normalizedText(value: string | null | undefined): string {
   return (value || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function normalizeSymptom(value: string | null | undefined): string {
+  const text = normalizedText(value);
+  if (!text) return "ไม่ระบุอาการ";
+  if (/จอ|display|screen|แตก|ภาพ|backlight/.test(text)) return "จอ/ภาพแสดงผล";
+  if (/แบต|battery|ชาร์จ|charge|ไฟ|power/.test(text)) return "แบตเตอรี่/ชาร์จไฟ";
+  if (/เปิดไม่ติด|boot|เปิดเครื่อง|ไม่ติด/.test(text)) return "เปิดไม่ติด";
+  if (/น้ำ|เปียก|liquid/.test(text)) return "โดนน้ำ/ความชื้น";
+  if (/keyboard|คีย์|ปุ่ม|trackpad/.test(text)) return "คีย์บอร์ด/ปุ่ม/แทร็กแพด";
+  if (/เสียง|ลำโพง|ไมค์|speaker|mic/.test(text)) return "เสียง/ไมโครโฟน";
+  if (/กล้อง|camera|face id|faceid/.test(text)) return "กล้อง/Face ID";
+  if (/ร้อน|heat|พัดลม|fan/.test(text)) return "ความร้อน/พัดลม";
+  return text.slice(0, 40);
+}
+
+function topMapEntry(map: Map<string, number>) {
+  const [label, count] = Array.from(map.entries()).sort((a, b) => b[1] - a[1])[0] || ["-", 0];
+  return { label, count };
+}
+
+function stockSuggestionForSymptom(symptom: string): string {
+  if (symptom.includes("จอ")) return "สำรองจอ/สายแพจอ/กาวจอสำหรับรุ่นที่เข้าบ่อย";
+  if (symptom.includes("แบต") || symptom.includes("ชาร์จ")) return "สำรองแบตเตอรี่ พอร์ตชาร์จ และสายแพชาร์จ";
+  if (symptom.includes("เปิดไม่ติด")) return "สำรองชุด IC power, USB-C board และอุปกรณ์วิเคราะห์ไฟ";
+  if (symptom.includes("น้ำ")) return "เตรียมน้ำยาล้างบอร์ด แผ่นซับ และชุดตรวจ corrosion";
+  if (symptom.includes("คีย์บอร์ด")) return "สำรอง keyboard/topcase และ trackpad cable";
+  if (symptom.includes("เสียง")) return "สำรองลำโพง ไมค์ และสายแพ audio";
+  if (symptom.includes("กล้อง")) return "สำรองกล้องหน้า/หลัง และโมดูล Face ID ตามรุ่นยอดนิยม";
+  if (symptom.includes("ความร้อน")) return "สำรองพัดลม thermal paste และชุดทำความสะอาด";
+  return "ตรวจรุ่นที่พบซ้ำและตั้ง alertAt อะไหล่ที่เกี่ยวข้อง";
+}
+
 function isPositiveInteger(value: unknown): value is number {
   return Number.isInteger(value) && value > 0;
 }
@@ -1420,6 +1451,63 @@ app.get("/reports/top-customers", async (c) => {
     };
   }).sort((a, b) => b.totalRevenue - a.totalRevenue);
   return c.json(rows.slice(0, 25));
+});
+
+app.get("/reports/failure-patterns", async (c) => {
+  const repairs = await prisma.repair.findMany({
+    select: { deviceModel: true, deviceType: true, symptoms: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const modelMap = new Map<string, { model: string; count: number; deviceType: string; symptoms: Map<string, number> }>();
+  const symptomMap = new Map<string, { symptom: string; count: number; deviceTypes: Map<string, number> }>();
+  const matrix = new Map<string, Map<string, number>>();
+
+  for (const repair of repairs) {
+    const model = normalizedText(repair.deviceModel) || "unknown";
+    const deviceType = normalizedText(repair.deviceType) || "other";
+    const symptom = normalizeSymptom(repair.symptoms);
+
+    const modelEntry = modelMap.get(model) || { model: repair.deviceModel || "Unknown", count: 0, deviceType, symptoms: new Map<string, number>() };
+    modelEntry.count++;
+    modelEntry.symptoms.set(symptom, (modelEntry.symptoms.get(symptom) || 0) + 1);
+    modelMap.set(model, modelEntry);
+
+    const symptomEntry = symptomMap.get(symptom) || { symptom, count: 0, deviceTypes: new Map<string, number>() };
+    symptomEntry.count++;
+    symptomEntry.deviceTypes.set(deviceType, (symptomEntry.deviceTypes.get(deviceType) || 0) + 1);
+    symptomMap.set(symptom, symptomEntry);
+
+    const row = matrix.get(deviceType) || new Map<string, number>();
+    row.set(symptom, (row.get(symptom) || 0) + 1);
+    matrix.set(deviceType, row);
+  }
+
+  const topModels = Array.from(modelMap.values()).map((entry) => ({
+    model: entry.model,
+    deviceType: entry.deviceType,
+    count: entry.count,
+    topSymptom: topMapEntry(entry.symptoms),
+  })).sort((a, b) => b.count - a.count).slice(0, 15);
+
+  const topSymptoms = Array.from(symptomMap.values()).map((entry) => ({
+    symptom: entry.symptom,
+    count: entry.count,
+    topDeviceType: topMapEntry(entry.deviceTypes),
+  })).sort((a, b) => b.count - a.count).slice(0, 15);
+
+  const matrixRows = Array.from(matrix.entries()).map(([deviceType, symptoms]) => ({
+    deviceType,
+    symptoms: Array.from(symptoms.entries()).map(([symptom, count]) => ({ symptom, count })).sort((a, b) => b.count - a.count).slice(0, 8),
+  })).sort((a, b) => b.symptoms.reduce((sum, item) => sum + item.count, 0) - a.symptoms.reduce((sum, item) => sum + item.count, 0));
+
+  const stockSuggestions = topSymptoms.slice(0, 8).map((item) => ({
+    symptom: item.symptom,
+    demandScore: item.count,
+    suggestion: stockSuggestionForSymptom(item.symptom),
+  }));
+
+  return c.json({ totalRepairs: repairs.length, topModels, topSymptoms, matrix: matrixRows, stockSuggestions });
 });
 
 // ===== Reports: Job Profit Detail =====

@@ -248,6 +248,30 @@ export interface TopCustomerReport {
   lastRepairAt: string | null;
 }
 
+export interface FailurePatternsReport {
+  totalRepairs: number;
+  topModels: {
+    model: string;
+    deviceType: string;
+    count: number;
+    topSymptom: { label: string; count: number };
+  }[];
+  topSymptoms: {
+    symptom: string;
+    count: number;
+    topDeviceType: { label: string; count: number };
+  }[];
+  matrix: {
+    deviceType: string;
+    symptoms: { symptom: string; count: number }[];
+  }[];
+  stockSuggestions: {
+    symptom: string;
+    demandScore: number;
+    suggestion: string;
+  }[];
+}
+
 async function dbFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${DB_URL}${path}`, {
     ...options,
@@ -339,5 +363,6 @@ export const db = {
     techPerformance: (period?: string) => dbFetch<TechPerformanceReport>(`/reports/tech-performance${period ? `?period=${period}` : ""}`),
     pnl: () => dbFetch<PnlReport>("/reports/pnl"),
     topCustomers: () => dbFetch<TopCustomerReport[]>("/reports/top-customers"),
+    failurePatterns: () => dbFetch<FailurePatternsReport>("/reports/failure-patterns"),
   },
 };

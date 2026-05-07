@@ -122,6 +122,13 @@ export default async function ReportsPage({
           >
             Top Customers
           </a>
+          <a
+            href="/admin/reports/failure-patterns"
+            className="text-xs px-4 py-2.5 rounded-xl font-bold transition-all hover:opacity-90"
+            style={{ background: `${c.dark}08`, color: c.dark }}
+          >
+            Failure Patterns
+          </a>
         </div>
       </div>
 
