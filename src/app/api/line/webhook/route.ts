@@ -14,11 +14,18 @@ export const maxDuration = 25;
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const signature = req.headers.get("x-line-signature");
+
+  // LINE verify request — empty body or empty events
+  if (!body || body === '{}' || body === '{"events":[]}') {
+    return NextResponse.json({ ok: true });
+  }
+
   if (!lineConfig.channelSecret) return NextResponse.json({ error: "Channel secret not configured" }, { status: 500 });
   const hash = crypto.createHmac("SHA256", lineConfig.channelSecret).update(body).digest("base64");
   if (signature !== hash) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
 
   const { events } = JSON.parse(body);
+  if (!events?.length) return NextResponse.json({ ok: true });
   for (const event of events) await handleEvent(event);
   return NextResponse.json({ ok: true });
 }
