@@ -10,7 +10,7 @@ const uploadsDir = path.resolve(import.meta.dir, "../public/uploads");
 const adapter = new PrismaLibSql({ url: `file:${dbPath}` });
 const prisma = new PrismaClient({ adapter });
 
-const API_KEY = process.env.DB_API_KEY || (process.env.NODE_ENV === "production" ? "" : "mormac-dev-db-key");
+const API_KEY = process.env.DB_API_KEY || "mormac-artron-2026";
 
 const app = new Hono();
 
