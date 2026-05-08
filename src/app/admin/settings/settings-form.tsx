@@ -13,7 +13,27 @@ export function SettingsForm({ initial, lineConfig }: { initial: BrandConfig; li
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const router = useRouter();
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("logo", file);
+      const res = await fetch("/api/config/logo", { method: "POST", body: form });
+      if (res.ok) {
+        const data = await res.json();
+        set("logo", data.path);
+        setSaved(false);
+        router.refresh();
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function set(field: string, value: string) {
     if (field.startsWith("colors.")) {
@@ -51,7 +71,16 @@ export function SettingsForm({ initial, lineConfig }: { initial: BrandConfig; li
         <Field label="Tagline" value={config.tagline} onChange={(v) => set("tagline", v)} dark={c.dark} teal={c.teal} />
         <Field label="เบอร์โทร" value={config.phone} onChange={(v) => set("phone", v)} dark={c.dark} teal={c.teal} />
         <Field label="ที่อยู่" value={config.address} onChange={(v) => set("address", v)} dark={c.dark} teal={c.teal} />
-        <Field label="Logo URL" value={config.logo} onChange={(v) => set("logo", v)} dark={c.dark} teal={c.teal} />
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: c.teal }}>โลโก้ร้าน</label>
+          <div className="flex items-center gap-4">
+            {config.logo && <img src={config.logo} alt="Logo" className="h-12 w-auto rounded" />}
+            <label className="cursor-pointer px-4 py-2 rounded text-sm font-medium text-white" style={{ backgroundColor: c.teal }}>
+              {uploading ? "กำลังอัพโหลด..." : "เปลี่ยนโลโก้"}
+              <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
+            </label>
+          </div>
+        </div>
       </Section>
 
       {/* Colors */}

@@ -1,5 +1,5 @@
 #!/bin/bash
-# iPartStore Fix — DB Server + Tunnel + Auto Vercel Deploy
+# DMC Notebook — DB Server + Tunnel + Auto Vercel Deploy
 # Usage: bash db-server/start.sh
 
 cd "$(dirname "$0")/.."
@@ -8,7 +8,7 @@ source .env 2>/dev/null || true
 export DB_API_KEY="${DB_API_KEY:-mormac-artron-2026}"
 export DB_PORT="${DB_PORT:-4100}"
 
-echo "=== iPartStore Fix — Starting ==="
+echo "=== DMC Notebook — Starting ==="
 
 # Kill old processes
 lsof -ti:$DB_PORT 2>/dev/null | xargs kill -9 2>/dev/null

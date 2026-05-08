@@ -388,6 +388,23 @@ app.put("/config", async (c) => {
   return c.json({ ok: true });
 });
 
+// Logo upload
+app.post("/config/logo", async (c) => {
+  const formData = await c.req.formData();
+  const file = formData.get("logo") as File | null;
+  if (!file) return c.json({ error: "No file" }, 400);
+  const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+  if (!["png", "jpg", "jpeg", "svg", "webp"].includes(ext)) return c.json({ error: "Invalid file type" }, 400);
+  const buffer = await file.arrayBuffer();
+  const logoDir = path.resolve(import.meta.dir, "../public/brand");
+  await Bun.write(path.join(logoDir, ".keep"), "");
+  const filename = `logo.${ext}`;
+  await Bun.write(path.join(logoDir, filename), buffer);
+  const logoPath = `/brand/${filename}`;
+  await prisma.config.upsert({ where: { key: "brand.logo" }, update: { value: logoPath }, create: { key: "brand.logo", value: logoPath } });
+  return c.json({ ok: true, path: logoPath });
+});
+
 // Recalculate partsCost from actual RepairPart records
 app.post("/repairs/recalc-costs", async (c) => {
   const repairs = await prisma.repair.findMany({ include: { partsUsed: true } });
@@ -420,6 +437,24 @@ app.get("/stats", async (c) => {
 // ===== AI =====
 const SYSTEM_PROMPT = await Bun.file(path.resolve(import.meta.dir, "../ai/repair-assistant.md")).text();
 let LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
+
+// Conversation context — stored in DB for reliability across concurrent requests
+async function getChatContext(lineUserId: string): Promise<{ device?: string; type?: string; specs?: string } | null> {
+  const row = await prisma.config.findUnique({ where: { key: `chat.${lineUserId}` } });
+  if (!row) return null;
+  try {
+    const data = JSON.parse(row.value);
+    if (Date.now() - (data.ts || 0) > 10 * 60 * 1000) return null;
+    return data;
+  } catch { return null; }
+}
+async function setChatContext(lineUserId: string, ctx: { device?: string; type?: string; specs?: string }) {
+  const value = JSON.stringify({ ...ctx, ts: Date.now() });
+  await prisma.config.upsert({ where: { key: `chat.${lineUserId}` }, update: { value }, create: { key: `chat.${lineUserId}`, value } });
+}
+async function clearChatContext(lineUserId: string) {
+  await prisma.config.deleteMany({ where: { key: `chat.${lineUserId}` } });
+}
 const BRAND = { dark: "#0F1720", accent: "#28EF33", mint: "#85C1B2", white: "#FFFFFF" };
 
 async function getLineToken(): Promise<string> {
@@ -435,11 +470,13 @@ type RepairDraftMeta = {
   deviceType: string;
   symptoms: string;
   specs?: string;
+  serialNumber?: string;
+  serialModel?: string;
   fullName?: string;
   phone?: string;
   returnAddress?: string;
   intakePhotos?: string[];
-  step?: "name" | "phone" | "address" | "specs" | "photos";
+  step?: "serial_photo" | "serial_confirm" | "name" | "phone" | "address" | "specs" | "photos";
 };
 
 function appointmentStatusMessage(appointment: { date: string; time: string; status: string }) {
@@ -614,16 +651,18 @@ function imageExtension(file: File) {
 
 function extractThaiFullName(message: string): string | null {
   const text = message.trim().replace(/\s+/g, " ");
-  const match = text.match(/^(?:ชื่อ|ผมชื่อ|ฉันชื่อ|ลูกค้าชื่อ)\s*[:：]?\s*(.+)$/i);
-  const name = (match?.[1] || text).trim();
-  if (name.length < 4 || name.length > 80) return null;
-  if (!/\s/.test(name)) return null;
-  if (/[0-9]|@|https?:\/\//i.test(name)) return null;
-  return name;
+  const prefixMatch = text.match(/(?:ชื่อ|ผมชื่อ|ฉันชื่อ|ลูกค้าชื่อ|คุณ)\s*[:：]?\s*([ก-๙a-zA-Z]+\s+[ก-๙a-zA-Z]+)/i);
+  if (prefixMatch) return prefixMatch[1].trim();
+  if (text.length < 4 || text.length > 80) return null;
+  if (!/\s/.test(text)) return null;
+  if (/[0-9]|@|https?:\/\//i.test(text)) return null;
+  return text;
 }
 
 function extractPhone(message: string): string | null {
-  const digits = message.replace(/\D/g, "");
+  const phoneMatch = message.match(/0\d[\d\s-]{7,12}\d/);
+  if (!phoneMatch) return null;
+  const digits = phoneMatch[0].replace(/\D/g, "");
   if (!/^0\d{8,9}$/.test(digits)) return null;
   return digits;
 }
@@ -633,6 +672,21 @@ function extractReturnAddress(message: string): string | null {
   if (address.length < 15 || address.length > 500) return null;
   if (!/(ถ\.|ถนน|ซ\.|ซอย|ม\.|หมู่|ตำบล|ต\.|แขวง|อำเภอ|อ\.|เขต|จังหวัด|จ\.|กรุงเทพ|กทม|ไปรษณีย์|\d{5})/i.test(address)) return null;
   return address;
+}
+
+function extractAllCustomerInfo(message: string): { fullName?: string; phone?: string; address?: string } {
+  const result: { fullName?: string; phone?: string; address?: string } = {};
+  const nameMatch = message.match(/(?:คุณ|ชื่อ)\s*[:：]?\s*([ก-๙a-zA-Z]+\s+[ก-๙a-zA-Z]+)/i);
+  if (nameMatch) result.fullName = nameMatch[1].trim();
+  const phoneMatch = message.match(/(?:โทร|เบอร์|tel|phone)?\s*[:：]?\s*(0\d[\d\s-]{7,12}\d)/i);
+  if (phoneMatch) {
+    const digits = phoneMatch[1].replace(/\D/g, "");
+    if (/^0\d{8,9}$/.test(digits)) result.phone = digits;
+  }
+  if (/(ตำบล|ต\.|แขวง|อำเภอ|อ\.|เขต|จังหวัด|จ\.|หมู่|ม\.|ซอย|ถนน|\d{5})/.test(message)) {
+    result.address = message.trim().replace(/\s+/g, " ");
+  }
+  return result;
 }
 
 function wantsToSkipSpecs(message: string) {
@@ -733,7 +787,7 @@ function buildRepairStatusFlex(repair: {
         layout: "vertical",
         paddingAll: "16px",
         contents: [
-          { type: "text", text: "หมอแมค MorMac", color: BRAND.mint, size: "xs" },
+          { type: "text", text: "DMC Notebook", color: BRAND.mint, size: "xs" },
           { type: "text", text: "อัปเดตสถานะซ่อม", color: BRAND.white, size: "lg", weight: "bold", margin: "xs" },
           { type: "text", text: repair.repairCode, color: BRAND.accent, size: "xl", weight: "bold", margin: "sm" },
         ],
@@ -793,7 +847,7 @@ function buildQuoteConfirmFlex(repair: {
         layout: "vertical",
         paddingAll: "20px",
         contents: [
-          { type: "text", text: "หมอแมค MorMac", color: BRAND.mint, size: "xs" },
+          { type: "text", text: "DMC Notebook", color: BRAND.mint, size: "xs" },
           { type: "text", text: "ประเมินราคาซ่อม", color: BRAND.white, size: "lg", weight: "bold", margin: "xs" },
           { type: "text", text: repair.repairCode, color: BRAND.accent, size: "xl", weight: "bold", margin: "sm" },
         ],
@@ -893,6 +947,37 @@ async function pushRepairCreated(userId: string, repairCode: string, fullName: s
   });
 }
 
+async function readSerialFromImage(imagePath: string): Promise<{ model?: string; serial?: string; product?: string; raw: string }> {
+  try {
+    const fullPath = path.resolve(import.meta.dir, "../public", imagePath.replace(/^\//, ""));
+    const imageBuffer = await Bun.file(fullPath).arrayBuffer();
+    const base64 = Buffer.from(imageBuffer).toString("base64");
+    const res = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gemma3:4b",
+        prompt: "This is a photo of a laptop or device label. Read ALL text carefully character by character. Look for: 1) 'Model' followed by a code like A1932 or A2337, 2) 'Serial' followed by an alphanumeric code like C02YR2SLJK79, 3) 'EMC' number, 4) 'FCC ID'. Reply JSON only: {\"model\":\"the Model code e.g. A1932\",\"serial\":\"the Serial code exactly as printed\",\"product\":\"brand and device type e.g. MacBook Air\"} Copy text EXACTLY as shown - do not interpret or translate. Use null if truly unreadable.",
+        images: [base64],
+        stream: false,
+        keep_alive: "30m",
+        options: { temperature: 0.1, num_predict: 200 },
+      }),
+    });
+    const data = await res.json() as { response: string };
+    const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      const model = [parsed.model, parsed.product].filter(Boolean).join(" / ");
+      return { model: model || undefined, serial: parsed.serial || undefined, product: parsed.product || undefined, raw: data.response };
+    }
+    return { raw: data.response };
+  } catch (e) {
+    console.error("Vision read error:", e);
+    return { raw: "" };
+  }
+}
+
 async function aiParse(message: string) {
   const res = await fetch("http://localhost:11434/api/generate", {
     method: "POST",
@@ -977,14 +1062,12 @@ app.post("/ai/parse", async (c) => {
   }
 });
 
-// Async AI handler — Vercel fires and forgets, DB server does AI + LINE reply
+// AI handler — returns reply text for Vercel to use with replyMessage (no push quota needed)
 app.post("/ai/handle", async (c) => {
   const { message, userId, imageMessageId } = await c.req.json();
   if (!message || !userId) return c.json({ error: "Missing fields" }, 400);
 
-  // Return 200 immediately, process in background
-  const task = (async () => {
-    try {
+  try {
       let customer = await prisma.user.findUnique({ where: { lineUserId: userId } });
       const pendingAppointment = await prisma.appointment.findFirst({
         where: { customer: { lineUserId: userId }, status: "draft" },
@@ -993,8 +1076,7 @@ app.post("/ai/handle", async (c) => {
       if (pendingAppointment) {
         const parsed = parseAppointmentRequest(message);
         if (!parsed.date || !parsed.time) {
-          await linePush(userId, "ขอวันและเวลาที่ต้องการจองคิวด้วยค่ะ\nตัวอย่าง: 2026-05-10 14:00 MacBook เปิดไม่ติด");
-          return;
+          return c.json({ ok: true, reply: "ขอวันและเวลาที่ต้องการจองคิวด้วยค่ะ\nตัวอย่าง: 2026-05-10 14:00 MacBook เปิดไม่ติด" });
         }
         const appointment = await prisma.appointment.update({
           where: { id: pendingAppointment.id },
@@ -1006,8 +1088,7 @@ app.post("/ai/handle", async (c) => {
             status: "pending",
           },
         });
-        await linePush(userId, `รับคำขอจองคิวแล้วค่ะ 📅\nวันที่ ${appointment.date} เวลา ${appointment.time}\nร้านจะตรวจสอบและยืนยันให้อีกครั้งนะคะ`);
-        return;
+        return c.json({ ok: true, reply: `รับคำขอจองคิวแล้วค่ะ 📅\nวันที่ ${appointment.date} เวลา ${appointment.time}\nร้านจะตรวจสอบและยืนยันให้อีกครั้งนะคะ` });
       }
 
       if (/^จองคิว$/i.test(message.trim()) || message.trim().startsWith("จองคิว ")) {
@@ -1017,14 +1098,12 @@ app.post("/ai/handle", async (c) => {
           await prisma.appointment.create({
             data: { customerId: customer.id, date: "", time: "", deviceType: "", symptoms: "", status: "draft" },
           });
-          await linePush(userId, "ได้เลยค่ะ ต้องการจองวันและเวลาไหน แจ้งพร้อมรุ่นเครื่อง/อาการได้เลยค่ะ\nตัวอย่าง: 2026-05-10 14:00 MacBook เปิดไม่ติด");
-          return;
+          return c.json({ ok: true, reply: "ได้เลยค่ะ ต้องการจองวันและเวลาไหน แจ้งพร้อมรุ่นเครื่อง/อาการได้เลยค่ะ\nตัวอย่าง: 2026-05-10 14:00 MacBook เปิดไม่ติด" });
         }
         const appointment = await prisma.appointment.create({
           data: { customerId: customer.id, ...parsed, status: "pending" },
         });
-        await linePush(userId, `รับคำขอจองคิวแล้วค่ะ 📅\nวันที่ ${appointment.date} เวลา ${appointment.time}\nร้านจะตรวจสอบและยืนยันให้อีกครั้งนะคะ`);
-        return;
+        return c.json({ ok: true, reply: `รับคำขอจองคิวแล้วค่ะ 📅\nวันที่ ${appointment.date} เวลา ${appointment.time}\nร้านจะตรวจสอบและยืนยันให้อีกครั้งนะคะ` });
       }
 
       const pendingRepair = await prisma.repair.findFirst({
@@ -1040,16 +1119,122 @@ app.post("/ai/handle", async (c) => {
             where: { id: pendingRepair.id },
             data: { status: "cancelled", photos: null },
           });
-          await linePush(userId, "ข้อมูลแจ้งซ่อมเดิมไม่สมบูรณ์ กรุณาแจ้งรุ่นเครื่องและอาการอีกครั้งนะคะ");
-          return;
+          return c.json({ ok: true, reply: "ข้อมูลแจ้งซ่อมเดิมไม่สมบูรณ์ กรุณาแจ้งรุ่นเครื่องและอาการอีกครั้งนะคะ" });
         }
 
-        const step = draft.step || "name";
+        const step = draft.step || "serial_photo";
+
+        if (step === "serial_photo") {
+          if (imageMessageId) {
+            const photoPath = await downloadLineImage(imageMessageId);
+            if (photoPath) {
+              const result = await readSerialFromImage(photoPath);
+              if (result.serial || result.model) {
+                draft.serialNumber = result.serial || undefined;
+                draft.serialModel = result.model || undefined;
+
+                // Mismatch detection: compare device from serial photo vs what customer reported
+                const reportedDevice = (draft.deviceModel || "").toLowerCase();
+                const serialProduct = (result.product || result.model || "").toLowerCase();
+                const isMismatch = serialProduct && reportedDevice && (
+                  (reportedDevice.includes("iphone") && (serialProduct.includes("mac") || serialProduct.includes("a1") || serialProduct.includes("a2"))) ||
+                  (reportedDevice.includes("ipad") && serialProduct.includes("mac")) ||
+                  (reportedDevice.includes("mac") && serialProduct.includes("iphone")) ||
+                  (reportedDevice.includes("mac") && serialProduct.includes("ipad"))
+                );
+
+                draft.step = "serial_confirm";
+                await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+
+                let confirmText = "📋 ข้อมูลที่อ่านได้จากภาพ:\n";
+                if (result.model) confirmText += `📱 Model: ${result.model}\n`;
+                if (result.serial) confirmText += `🔢 Serial: ${result.serial}\n`;
+
+                if (isMismatch) {
+                  confirmText += `\n⚠️ ข้อมูลไม่ตรงกันค่ะ — แจ้งซ่อม "${draft.deviceModel}" แต่ภาพที่ส่งมาเป็น "${result.product || result.model}"\nกรุณาตรวจสอบว่าส่งรูปถูกเครื่องหรือไม่ค่ะ`;
+                }
+
+                confirmText += "\n\nถูกต้องไหมคะ?\n• \"ใช่\" — ยืนยัน\n• \"แก้ไข\" — ส่งรูปใหม่\n• พิมพ์ Serial ที่ถูกต้องได้เลย เช่น C02YR2SLJK79";
+                return c.json({ ok: true, reply: confirmText });
+              }
+              return c.json({ ok: true, reply: "อ่านข้อมูลจากภาพไม่ชัดค่ะ กรุณาถ่ายรูป Serial Number ใหม่ให้ชัดขึ้นนะคะ\nหรือพิมพ์ \"ข้าม\" เพื่อข้ามขั้นตอนนี้" });
+            }
+          }
+          if (/^(ข้าม|skip|ไม่มี)$/i.test(message.trim())) {
+            draft.step = "name";
+            await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+            return c.json({ ok: true, reply: "ขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยค่ะ\nเช่น สมชาย ใจดี" });
+          }
+          return c.json({ ok: true, reply: "📸 กรุณาถ่ายรูป Serial Number และ Model ของเครื่องส่งมาค่ะ\nดูได้ที่ฝาหลังเครื่อง หรือใน About This Mac\nหรือพิมพ์ \"ข้าม\" ถ้าหาไม่เจอ" });
+        }
+
+        if (step === "serial_confirm") {
+          // Customer typed correct serial manually
+          if (/^[A-Za-z0-9]{8,20}$/.test(message.trim()) && !(/^(ใช่|ถูกต้อง|ยืนยัน|yes|ok|ใช้|แก้ไข|ใหม่|ส่งใหม่|ไม่ถูก|ผิด)$/i.test(message.trim()))) {
+            draft.serialNumber = message.trim().toUpperCase();
+            draft.step = "name";
+            await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+            const hasFullName = pendingRepair.customer.name !== "LINE User" && /\s/.test(pendingRepair.customer.name.trim());
+            if (hasFullName) {
+              draft.fullName = pendingRepair.customer.name;
+              draft.step = pendingRepair.customer.phone ? "address" : "phone";
+              if (pendingRepair.customer.phone) draft.phone = pendingRepair.customer.phone;
+              await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+              return c.json({ ok: true, reply: draft.step === "phone"
+                ? "ขอเบอร์โทรสำหรับติดต่อและใส่ใบปะหน้าส่งกลับด้วยค่ะ\nเช่น 0812345678"
+                : "ขอที่อยู่สำหรับส่งเครื่องกลับทางไปรษณีย์ด้วยค่ะ\nกรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์"
+              });
+            }
+            return c.json({ ok: true, reply: `บันทึก Serial: ${draft.serialNumber} แล้วค่ะ\nขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยค่ะ\nเช่น สมชาย ใจดี` });
+          }
+          if (/^(ใช่|ถูกต้อง|ยืนยัน|yes|ok|ใช้)$/i.test(message.trim())) {
+            draft.step = "name";
+            await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+            const hasFullName = pendingRepair.customer.name !== "LINE User" && /\s/.test(pendingRepair.customer.name.trim());
+            if (hasFullName) {
+              draft.fullName = pendingRepair.customer.name;
+              draft.step = pendingRepair.customer.phone ? "address" : "phone";
+              if (pendingRepair.customer.phone) draft.phone = pendingRepair.customer.phone;
+              await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+              return c.json({ ok: true, reply: draft.step === "phone"
+                ? "ขอเบอร์โทรสำหรับติดต่อและใส่ใบปะหน้าส่งกลับด้วยค่ะ\nเช่น 0812345678"
+                : "ขอที่อยู่สำหรับส่งเครื่องกลับทางไปรษณีย์ด้วยค่ะ\nกรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์"
+              });
+            }
+            return c.json({ ok: true, reply: "ขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยค่ะ\nเช่น สมชาย ใจดี" });
+          }
+          if (/^(แก้ไข|ใหม่|ส่งใหม่|ไม่ถูก|ผิด)$/i.test(message.trim())) {
+            draft.step = "serial_photo";
+            draft.serialNumber = undefined;
+            draft.serialModel = undefined;
+            await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
+            return c.json({ ok: true, reply: "📸 กรุณาถ่ายรูป Serial Number ใหม่ส่งมาค่ะ" });
+          }
+          return c.json({ ok: true, reply: "พิมพ์ \"ใช่\" เพื่อยืนยัน หรือ \"แก้ไข\" เพื่อส่งรูปใหม่ค่ะ" });
+        }
+
+        // Smart parse: try to extract all info from one message (name+phone+address)
+        if (step === "name" || step === "phone" || step === "address") {
+          const all = extractAllCustomerInfo(message);
+          if (all.fullName && all.phone && all.address) {
+            draft.fullName = all.fullName;
+            draft.phone = all.phone;
+            draft.returnAddress = all.address;
+            draft.step = needsMacSpecs(draft) ? "specs" : "photos";
+            draft.intakePhotos = draft.step === "photos" ? [] : draft.intakePhotos;
+            await prisma.$transaction([
+              prisma.user.update({ where: { id: pendingRepair.customerId }, data: { name: all.fullName, phone: all.phone } }),
+              prisma.repair.update({ where: { id: pendingRepair.id }, data: { status: "pending_customer_info", photos: JSON.stringify(draft) } }),
+            ]);
+            if (draft.step === "specs") return c.json({ ok: true, reply: macSpecsHelpText() });
+            return c.json({ ok: true, reply: "รับข้อมูลครบแล้วค่ะ 📸 กรุณาถ่ายรูปเครื่องก่อนส่ง (สภาพภายนอก, จอ, ตัวเครื่อง)\nส่งรูปได้เลยค่ะ เสร็จแล้วพิมพ์ \"เสร็จ\"" });
+          }
+        }
+
         if (step === "name") {
           const fullName = extractThaiFullName(message);
           if (!fullName) {
-            await linePush(userId, "ขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยค่ะ\nเช่น สมชาย ใจดี");
-            return;
+            return c.json({ ok: true, reply: "ขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยค่ะ\nเช่น สมชาย ใจดี" });
           }
           draft.fullName = fullName;
           draft.step = "phone";
@@ -1057,15 +1242,13 @@ app.post("/ai/handle", async (c) => {
             prisma.user.update({ where: { id: pendingRepair.customerId }, data: { name: fullName } }),
             prisma.repair.update({ where: { id: pendingRepair.id }, data: { status: "pending_customer_info", photos: JSON.stringify(draft) } }),
           ]);
-          await linePush(userId, "ขอเบอร์โทรสำหรับติดต่อและใส่ใบปะหน้าส่งกลับด้วยค่ะ\nเช่น 0812345678");
-          return;
+          return c.json({ ok: true, reply: "ขอเบอร์โทรสำหรับติดต่อและใส่ใบปะหน้าส่งกลับด้วยค่ะ\nเช่น 0812345678" });
         }
 
         if (step === "phone") {
           const phone = extractPhone(message);
           if (!phone) {
-            await linePush(userId, "เบอร์โทรไม่ถูกต้องค่ะ กรุณาส่งเป็นเบอร์มือถือ 9-10 หลัก เช่น 0812345678");
-            return;
+            return c.json({ ok: true, reply: "เบอร์โทรไม่ถูกต้องค่ะ กรุณาส่งเป็นเบอร์มือถือ 9-10 หลัก เช่น 0812345678" });
           }
           draft.phone = phone;
           draft.step = "address";
@@ -1073,28 +1256,24 @@ app.post("/ai/handle", async (c) => {
             prisma.user.update({ where: { id: pendingRepair.customerId }, data: { phone } }),
             prisma.repair.update({ where: { id: pendingRepair.id }, data: { status: "pending_customer_info", photos: JSON.stringify(draft) } }),
           ]);
-          await linePush(userId, "ขอที่อยู่สำหรับส่งเครื่องกลับทางไปรษณีย์ด้วยค่ะ\nกรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์");
-          return;
+          return c.json({ ok: true, reply: "ขอที่อยู่สำหรับส่งเครื่องกลับทางไปรษณีย์ด้วยค่ะ\nกรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์" });
         }
 
         if (step === "address") {
           const returnAddress = extractReturnAddress(message);
           if (!returnAddress) {
-            await linePush(userId, "ที่อยู่ยังไม่ครบพอสำหรับจัดส่งค่ะ กรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์");
-            return;
+            return c.json({ ok: true, reply: "ที่อยู่ยังไม่ครบพอสำหรับจัดส่งค่ะ กรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์" });
           }
           draft.returnAddress = returnAddress;
           if (needsMacSpecs(draft)) {
             draft.step = "specs";
             await prisma.repair.update({ where: { id: pendingRepair.id }, data: { status: "pending_customer_info", photos: JSON.stringify(draft) } });
-            await linePush(userId, macSpecsHelpText());
-            return;
+            return c.json({ ok: true, reply: macSpecsHelpText() });
           }
           draft.step = "photos";
           draft.intakePhotos = [];
           await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
-          await linePush(userId, "📸 กรุณาถ่ายรูปเครื่องก่อนส่ง (สภาพภายนอก, จอ, ตัวเครื่อง)\nส่งรูปได้เลยค่ะ เสร็จแล้วพิมพ์ \"เสร็จ\"");
-          return;
+          return c.json({ ok: true, reply: "📸 กรุณาถ่ายรูปเครื่องก่อนส่ง (สภาพภายนอก, จอ, ตัวเครื่อง)\nส่งรูปได้เลยค่ะ เสร็จแล้วพิมพ์ \"เสร็จ\"" });
         }
 
         if (step === "specs") {
@@ -1102,8 +1281,7 @@ app.post("/ai/handle", async (c) => {
           draft.step = "photos";
           draft.intakePhotos = [];
           await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
-          await linePush(userId, "📸 กรุณาถ่ายรูปเครื่องก่อนส่ง (สภาพภายนอก, จอ, ตัวเครื่อง)\nส่งรูปได้เลยค่ะ เสร็จแล้วพิมพ์ \"เสร็จ\"");
-          return;
+          return c.json({ ok: true, reply: "📸 กรุณาถ่ายรูปเครื่องก่อนส่ง (สภาพภายนอก, จอ, ตัวเครื่อง)\nส่งรูปได้เลยค่ะ เสร็จแล้วพิมพ์ \"เสร็จ\"" });
         }
 
         if (step === "photos") {
@@ -1113,28 +1291,28 @@ app.post("/ai/handle", async (c) => {
               draft.intakePhotos = draft.intakePhotos || [];
               draft.intakePhotos.push(photoPath);
               await prisma.repair.update({ where: { id: pendingRepair.id }, data: { photos: JSON.stringify(draft) } });
-              await linePush(userId, `✅ ได้รับรูปที่ ${draft.intakePhotos.length} แล้วค่ะ\nส่งเพิ่มได้อีก หรือพิมพ์ "เสร็จ" เพื่อยืนยันแจ้งซ่อม`);
-              return;
+              return c.json({ ok: true, reply: `✅ ได้รับรูปที่ ${draft.intakePhotos.length} แล้วค่ะ\nส่งเพิ่มได้อีก หรือพิมพ์ "เสร็จ" เพื่อยืนยันแจ้งซ่อม` });
             }
           }
           if (/^(เสร็จ|ส่งแล้ว|จบ|done|ยืนยัน|ok)$/i.test(message.trim())) {
             if (!draft.intakePhotos?.length) {
-              await linePush(userId, "กรุณาส่งรูปเครื่องอย่างน้อย 1 รูปก่อนค่ะ 📸\nถ่ายสภาพเครื่องแล้วส่งมาเลย");
-              return;
+              return c.json({ ok: true, reply: "กรุณาส่งรูปเครื่องอย่างน้อย 1 รูปก่อนค่ะ 📸\nถ่ายสภาพเครื่องแล้วส่งมาเลย" });
             }
             // Fall through to finalize
           } else if (message !== "__IMAGE__") {
-            await linePush(userId, "📸 ส่งรูปเครื่องเพิ่มได้เลยค่ะ หรือพิมพ์ \"เสร็จ\" เพื่อยืนยันแจ้งซ่อม");
-            return;
+            return c.json({ ok: true, reply: "📸 ส่งรูปเครื่องเพิ่มได้เลยค่ะ หรือพิมพ์ \"เสร็จ\" เพื่อยืนยันแจ้งซ่อม" });
           } else {
-            return;
+            return c.json({ ok: true });
           }
         }
 
         const repairCode = await nextRepairCode();
-        const finalDeviceModel = draft.specs && !draft.deviceModel.includes(draft.specs)
+        let finalDeviceModel = draft.specs && !draft.deviceModel.includes(draft.specs)
           ? `${draft.deviceModel} (${draft.specs})`
           : draft.deviceModel;
+        if (draft.serialModel && !finalDeviceModel.includes(draft.serialModel)) {
+          finalDeviceModel = `${finalDeviceModel} [${draft.serialModel}]`;
+        }
         await prisma.$transaction([
           prisma.repair.update({
             where: { id: pendingRepair.id },
@@ -1149,18 +1327,28 @@ app.post("/ai/handle", async (c) => {
               shippingMethod: "postal_return",
             },
           }),
-          prisma.repairEvent.create({ data: { repairId: pendingRepair.id, status: "submitted", actor: "system", note: "Customer intake completed" } }),
+          prisma.repairEvent.create({ data: { repairId: pendingRepair.id, status: "submitted", actor: "system", note: `Customer intake completed${draft.serialNumber ? ` | S/N: ${draft.serialNumber}` : ""}` } }),
         ]);
 
         await pushRepairCreated(userId, repairCode, draft.fullName || pendingRepair.customer.name, { ...draft, deviceModel: finalDeviceModel });
-        return;
+        return c.json({ ok: true, reply: `✅ แจ้งซ่อมสำเร็จ! เลขซ่อม ${repairCode}\nติดตามสถานะ: https://dmc-notebook.vercel.app/track/${repairCode}` });
       }
 
-      const ai = await aiParse(message);
+      // Check if there's saved context (device from previous message)
+      const ctx = await getChatContext(userId);
+      const combinedMessage = ctx?.device ? `${ctx.device} ${ctx.specs || ""} ${message}`.trim() : message;
+
+      const ai = await aiParse(combinedMessage);
+
+      // If AI found device but no symptoms → save context and ask for symptoms
+      if (ai.intent === "need_info" && ai.device) {
+        await setChatContext(userId, { device: ai.device, type: ai.type, specs: ai.specs });
+      }
 
       if (ai.intent === "repair" && ai.device && ai.symptoms) {
+        await clearChatContext(userId);
         const shops = await prisma.shop.findMany({ take: 1 });
-        if (shops.length === 0) { await linePush(userId, "⚠️ ระบบยังไม่พร้อม"); return; }
+        if (shops.length === 0) { return c.json({ ok: true, reply: "⚠️ ระบบยังไม่พร้อม" }); }
 
         const deviceModel = ai.specs ? `${ai.device} (${ai.specs})` : ai.device;
         const recentDuplicate = await prisma.repair.findFirst({
@@ -1175,13 +1363,10 @@ app.post("/ai/handle", async (c) => {
         });
         if (recentDuplicate) {
           const code = recentDuplicate.repairCode.startsWith("TMP-") ? null : recentDuplicate.repairCode;
-          await linePush(
-            userId,
-            code
-              ? `รายการนี้ถูกแจ้งไว้แล้วค่ะ เลขซ่อม ${code}\nติดตามสถานะ: https://dmc-notebook.vercel.app/track/${code}`
-              : "รายการนี้อยู่ระหว่างรอชื่อจริงและนามสกุลค่ะ กรุณาส่งชื่อจริงและนามสกุล เช่น สมชาย ใจดี"
-          );
-          return;
+          return c.json({ ok: true, reply: code
+            ? `รายการนี้ถูกแจ้งไว้แล้วค่ะ เลขซ่อม ${code}\nติดตามสถานะ: https://dmc-notebook.vercel.app/track/${code}`
+            : "รายการนี้อยู่ระหว่างรอชื่อจริงและนามสกุลค่ะ กรุณาส่งชื่อจริงและนามสกุล เช่น สมชาย ใจดี"
+          });
         }
 
         if (!customer) customer = await prisma.user.create({ data: { lineUserId: userId, name: "LINE User", role: "customer" } });
@@ -1196,7 +1381,7 @@ app.post("/ai/handle", async (c) => {
           specs: ai.specs,
           fullName: hasFullName ? customer.name : undefined,
           phone: hasPhone ? customer.phone || undefined : undefined,
-          step: hasFullName ? (hasPhone ? "address" : "phone") : "name",
+          step: "serial_photo",
         };
         const repair = await prisma.repair.create({
           data: {
@@ -1220,31 +1405,18 @@ app.post("/ai/handle", async (c) => {
             },
           });
         }
-        if (!hasFullName) {
-          await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอชื่อจริงและนามสกุลสำหรับทำใบปะหน้าส่งไปรษณีย์ด้วยนะคะ\nเช่น สมชาย ใจดี");
-        } else if (!hasPhone) {
-          await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอเบอร์โทรสำหรับติดต่อและใส่ใบปะหน้าส่งกลับด้วยค่ะ\nเช่น 0812345678");
-        } else {
-          await linePush(userId, "รับข้อมูลเครื่องและอาการแล้วค่ะ\nขอที่อยู่สำหรับส่งเครื่องกลับทางไปรษณีย์ด้วยค่ะ\nกรุณาส่ง บ้านเลขที่ / ถนนหรือซอย / แขวง-ตำบล / เขต-อำเภอ / จังหวัด / รหัสไปรษณีย์");
-        }
-        return;
+        return c.json({ ok: true, reply: "รับข้อมูลเครื่องและอาการแล้วค่ะ\n\n📸 กรุณาถ่ายรูป Serial Number และ Model ของเครื่องส่งมาค่ะ\nดูได้ที่ฝาหลังเครื่อง หรือใน About This Mac > Overview\nหรือพิมพ์ \"ข้าม\" ถ้าหาไม่เจอ" });
       }
 
       if (ai.reply) {
-        await linePush(userId, ai.reply);
-        return;
+        return c.json({ ok: true, reply: ai.reply });
       }
 
-      await linePush(userId, "สวัสดีค่ะ 🙏 หมอแมค MorMac\nบอกรุ่นเครื่องและอาการได้เลยค่ะ");
+      return c.json({ ok: true, reply: "สวัสดีค่ะ 🙏 DMC Notebook\nบอกรุ่นเครื่องและอาการได้เลยค่ะ" });
     } catch (e) {
       console.error("AI handle error:", e);
-      await linePush(userId, "ขออภัยค่ะ ระบบขัดข้อง กรุณาลองใหม่อีกครั้งนะคะ");
+      return c.json({ ok: true, reply: "ขออภัยค่ะ ระบบขัดข้อง กรุณาลองใหม่อีกครั้งนะคะ" });
     }
-  })();
-
-  // Don't await — return immediately
-  void task;
-  return c.json({ ok: true, async: true });
 });
 
 // ===== Reports =====
@@ -1851,7 +2023,7 @@ app.post("/generate-repair-code", async (c) => {
 });
 
 const PORT = parseInt(process.env.DB_PORT || "4100");
-console.log(`MorMac DB Server running on :${PORT}`);
+console.log(`DMC Notebook DB Server running on :${PORT}`);
 
 // Pre-warm Ollama model
 fetch("http://localhost:11434/api/generate", {

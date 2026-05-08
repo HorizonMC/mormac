@@ -61,12 +61,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5 border-b" style={{ borderColor: `${c.mint}15` }}>
-          <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
-            style={{ background: c.accent, color: c.dark }}
-          >
-            D
-          </div>
+          {brand.logo
+            ? <img src={brand.logo} alt={brand.name} className="h-9 w-auto shrink-0" />
+            : <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black shrink-0" style={{ background: c.accent, color: c.dark }}>D</div>
+          }
           <div className="min-w-0">
             <p className="text-white font-bold text-sm leading-tight truncate">{brand.name}</p>
             <p className="text-[11px] leading-tight truncate" style={{ color: `${c.mint}88` }}>Admin Panel</p>

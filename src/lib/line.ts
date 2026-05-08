@@ -54,7 +54,7 @@ export function buildRepairStatusFlex(repair: any, trackUrl: string): FlexMessag
       header: {
         type: "box", layout: "vertical", paddingAll: "16px",
         contents: [
-          { type: "text", text: "iPartStore Fix", color: B.mint, size: "xs" },
+          { type: "text", text: "DMC Notebook", color: B.mint, size: "xs" },
           { type: "text", text: repair.repairCode, color: B.white, size: "xl", weight: "bold" },
         ],
       },
@@ -128,7 +128,7 @@ export function buildRepairListFlex(repairs: any[]): FlexMessage {
       header: {
         type: "box", layout: "vertical", paddingAll: "16px",
         contents: [
-          { type: "text", text: "iPartStore Fix", color: B.mint, size: "xs" },
+          { type: "text", text: "DMC Notebook", color: B.mint, size: "xs" },
           { type: "text", text: "📋 รายการซ่อมล่าสุด", color: B.white, size: "lg", weight: "bold" },
         ],
       },
@@ -186,7 +186,7 @@ export function buildReportGuide(): FlexMessage {
       header: {
         type: "box", layout: "vertical", paddingAll: "20px",
         contents: [
-          { type: "text", text: "iPartStore Fix", color: B.mint, size: "xs" },
+          { type: "text", text: "DMC Notebook", color: B.mint, size: "xs" },
           { type: "text", text: "🔧 แจ้งซ่อม", color: B.white, size: "xl", weight: "bold" },
         ],
       },
@@ -219,7 +219,7 @@ export function buildQuoteConfirmFlex(repairCode: string, price: number): FlexMe
       header: {
         type: "box", layout: "vertical", paddingAll: "20px",
         contents: [
-          { type: "text", text: "iPartStore Fix", color: B.mint, size: "xs" },
+          { type: "text", text: "DMC Notebook", color: B.mint, size: "xs" },
           { type: "text", text: "💰 ประเมินราคาซ่อม", color: B.white, size: "lg", weight: "bold" },
         ],
       },
@@ -254,7 +254,7 @@ export async function pushRepairUpdate(lineUserId: string, repairCode: string, s
       header: {
         type: "box", layout: "vertical", paddingAll: "16px",
         contents: [
-          { type: "text", text: "iPartStore Fix", color: B.mint, size: "xs" },
+          { type: "text", text: "DMC Notebook", color: B.mint, size: "xs" },
           { type: "text", text: "อัพเดทสถานะ", color: B.white, size: "md", weight: "bold" },
         ],
       },

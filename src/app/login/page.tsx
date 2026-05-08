@@ -15,9 +15,10 @@ export default async function LoginPage() {
       <div className="relative w-full max-w-sm space-y-8">
         <div className="text-center">
           <Link href="/">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-black mx-auto mb-4 shadow-lg" style={{ background: c.accent, color: c.dark }}>
-              D
-            </div>
+            {brand.logo
+              ? <img src={brand.logo} alt={brand.name} className="h-14 w-auto mx-auto mb-4" />
+              : <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-black mx-auto mb-4 shadow-lg" style={{ background: c.accent, color: c.dark }}>D</div>
+            }
           </Link>
           <h1 className="text-2xl font-black text-white">{brand.name}</h1>
           <p className="text-sm mt-1" style={{ color: c.mint }}>

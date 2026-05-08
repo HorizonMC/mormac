@@ -32,7 +32,7 @@ export default async function HomePage() {
       {/* Navigation */}
       <nav className="flex items-center justify-between px-5 py-4 max-w-5xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black" style={{ background: c.accent, color: c.dark }}>D</div>
+          {brand.logo ? <img src={brand.logo} alt={brand.name} className="h-9 w-auto" /> : <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black" style={{ background: c.accent, color: c.dark }}>D</div>}
           <span className="text-white font-bold text-lg">{brand.name}</span>
         </div>
         <Link href="/login" className="px-5 py-2 rounded-lg text-xs font-bold transition hover:opacity-80" style={{ background: `${c.accent}18`, color: c.accent }}>
@@ -233,7 +233,7 @@ export default async function HomePage() {
       <footer className="border-t px-5 py-8" style={{ background: c.dark, borderColor: `${c.mint}11` }}>
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md flex items-center justify-center text-[8px] font-black" style={{ background: c.accent, color: c.dark }}>D</div>
+            {brand.logo ? <img src={brand.logo} alt={brand.name} className="h-7 w-auto" /> : <div className="w-7 h-7 rounded-md flex items-center justify-center text-[8px] font-black" style={{ background: c.accent, color: c.dark }}>D</div>}
             <div>
               <span className="text-white font-bold text-sm">{brand.name}</span>
               <span className="text-xs ml-2" style={{ color: `${c.mint}88` }}>{brand.nameTh}</span>
