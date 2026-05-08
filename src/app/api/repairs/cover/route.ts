@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 <div class="note">กรุณาแปะใบนี้ไว้ที่ซองหรือกล่องส่งเครื่อง</div>
 <div class="cut"></div>
 <div class="info">
-<div class="row"><span class="label">สำหรับร้าน</span><span class="value">${escapeHtml(repair.shop?.name || brand.name)}</span></div>
+<div class="row"><span class="label">สำหรับร้าน</span><span class="value">${escapeHtml(brand.name)} ${escapeHtml(brand.nameTh)}</span></div>
 <div class="row"><span class="label">เลขซ่อม</span><span class="value" style="font-family:monospace;font-size:16px;font-weight:bold">${escapeHtml(code.toUpperCase())}</span></div>
 <div class="row"><span class="label">อุปกรณ์</span><span class="value">${escapeHtml(repair.deviceModel)} (${escapeHtml(repair.deviceType)})</span></div>
 <div class="row"><span class="label">อาการ</span><span class="value">${escapeHtml(repair.symptoms)}</span></div>
